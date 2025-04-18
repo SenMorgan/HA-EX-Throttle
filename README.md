@@ -13,7 +13,7 @@ Clone this repository into your Home Assistant's `custom_components` directory:
 
 ```bash
 cd config/custom_components
-git clone https://github.com/SenMorgan/ha-excommandstation
+git clone https://github.com/SenMorgan/HA-CommandStation-EX
 ```
 
 ## Configuration

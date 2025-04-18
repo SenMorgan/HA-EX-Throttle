@@ -5,9 +5,8 @@
     "@SenMorgan"
   ],
   "config_flow": true,
-  "dependencies": [],
-  "documentation": "https://github.com/SenMorgan/ha-excommandstation",
+  "documentation": "https://github.com/SenMorgan/HA-CommandStation-EX",
   "iot_class": "local_push",
-  "version": "0.0.1",
-  "requirements": []
+  "issue_tracker": "https://github.com/SenMorgan/HA-CommandStation-EX/issues",
+  "version": "0.1.0"
 }

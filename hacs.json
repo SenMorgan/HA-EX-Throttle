@@ -1,5 +1,5 @@
 {
-    "name": "Integration blueprint",
-    "homeassistant": "2025.2.4",
-    "hacs": "2.0.1"
+    "name": "EX‑CommandStation",
+    "homeassistant": "2025.4.2",
+    "hacs": "2.0.5"
 }
