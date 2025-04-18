@@ -1,0 +1,13 @@
+{
+  "domain": "excommandstation",
+  "name": "EX‑CommandStation",
+  "codeowners": [
+    "@SenMorgan"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/SenMorgan/ha-excommandstation",
+  "iot_class": "local_push",
+  "version": "0.0.1",
+  "requirements": []
+}

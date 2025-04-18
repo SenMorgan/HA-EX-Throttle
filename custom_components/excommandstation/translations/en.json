@@ -1,0 +1,23 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Connect to EX-CommandStation",
+                "data": {
+                    "host": "IP address or hostname",
+                    "port": "Port number",
+                    "profile_name": "Custom name for this connection (optional)"
+                },
+                "data_description": {
+                    "profile_name": "A custom name (integration entry) to identify this EX-CommandStation in Home Assistant"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Failed to connect to the EX-CommandStation"
+        },
+        "abort": {
+            "already_configured": "Device is already configured"
+        }
+    }
+}
