@@ -15,14 +15,8 @@ if TYPE_CHECKING:
     from .excs_client import EXCommandStationClient
 
 
-from .const import (
-    CMD_TRACKS_OFF,
-    CMD_TRACKS_ON,
-    DOMAIN,
-    LOGGER,
-    RESP_STATE_OFF,
-    RESP_STATE_ON,
-)
+from .commands import CMD_TRACKS_OFF, CMD_TRACKS_ON, RESP_TRACKS_OFF, RESP_TRACKS_ON
+from .const import DOMAIN, LOGGER
 
 
 async def async_setup_entry(
@@ -64,11 +58,11 @@ class EXCSTracksPowerSwitch(SwitchEntity):
 
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
-        if RESP_STATE_ON in message:
+        if RESP_TRACKS_ON in message:
             LOGGER.debug("Received tracks state ON")
             self._attr_is_on = True
             self.async_write_ha_state()
-        elif RESP_STATE_OFF in message:
+        elif RESP_TRACKS_OFF in message:
             LOGGER.debug("Received tracks state OFF")
             self._attr_is_on = False
             self.async_write_ha_state()
