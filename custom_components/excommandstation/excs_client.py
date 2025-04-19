@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
+from .commands import command_set_function, command_write_cv
 from .const import LOGGER
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from homeassistant.core import ServiceCall
 
 
 class EXCommandStationError(Exception):
@@ -72,6 +78,26 @@ class EXCommandStationClient:
             return
         self._writer.write((command + "\r\n").encode("ascii"))
         await self._writer.drain()
+
+    async def handle_send_function(self, call: ServiceCall) -> None:
+        """Handle the send function service call."""
+        address = int(call.data["address"])
+        func = int(call.data["function"])
+        value = int(call.data["state"])  # Convert boolean state to int
+        command = command_set_function(address, func, value)
+        LOGGER.debug(
+            "Sending function: address=%d, function=%d, value=%d", address, func, value
+        )
+        await self.send_command(command)
+
+    async def handle_write_cv(self, call: ServiceCall) -> None:
+        """Handle the write CV service call."""
+        address = int(call.data["address"])
+        cv = int(call.data["cv"])
+        value = int(call.data["value"])
+        command = command_write_cv(address, cv, value)
+        LOGGER.debug("Writing CV: address=%d, cv=%d, value=%d", address, cv, value)
+        await self.send_command(command)
 
     async def _listen(self) -> None:
         """Listen for incoming messages from the EX-CommandStation."""

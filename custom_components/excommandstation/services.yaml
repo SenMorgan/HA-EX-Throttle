@@ -1,0 +1,66 @@
+send_function:
+  name: Send Function Command
+  description: Turns a locomotive function on or off.
+  fields:
+    address:
+      name: Locomotive Address
+      description: DCC address of the locomotive to send the command to.
+      required: true
+      example: 5
+      selector:
+        number:
+          min: 1
+          max: 10239
+          mode: box
+    function:
+      name: Function Number
+      description: Number of the function to control (e.g., 0 = headlights).
+      required: true
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 28
+          mode: box
+    state:
+      name: Function State
+      description: Enabled (1) or disabled (0) state of the function.
+      required: true
+      example: true
+      selector:
+        boolean: {}
+
+write_cv:
+  name: Write CV Register
+  description: Writes a value to a CV register of a locomotive.
+  fields:
+    address:
+      name: Locomotive Address
+      description: DCC address of the locomotive.
+      required: true
+      example: 3
+      selector:
+        number:
+          min: 1
+          max: 10239
+          mode: box
+    cv:
+      name: CV Number
+      description: The number of the CV register to write to.
+      required: true
+      example: 63
+      selector:
+        number:
+          min: 1
+          max: 1024
+          mode: box
+    value:
+      name: Value
+      description: Value to write into the specified CV register.
+      required: true
+      example: 64
+      selector:
+        number:
+          min: 0
+          max: 255
+          mode: box
