@@ -50,7 +50,7 @@ class EXCSTracksPowerSwitch(SwitchEntity):
         )
         self.entity_description = SwitchEntityDescription(
             key="tracks_power",
-            name="Tracks Power",
+            name="EX-CS Tracks Power",
             icon="mdi:power",
         )
 
