@@ -15,7 +15,13 @@ if TYPE_CHECKING:
     from .excs_client import EXCommandStationClient
 
 
-from .commands import CMD_TRACKS_OFF, CMD_TRACKS_ON, RESP_TRACKS_OFF, RESP_TRACKS_ON
+from .commands import (
+    CMD_STATE,
+    CMD_TRACKS_OFF,
+    CMD_TRACKS_ON,
+    RESP_TRACKS_OFF,
+    RESP_TRACKS_ON,
+)
 from .const import DOMAIN, LOGGER
 
 
@@ -51,10 +57,17 @@ class EXCSTracksPowerSwitch(SwitchEntity):
     async def async_added_to_hass(self) -> None:
         """Register callbacks."""
         self._client.register_callback(self._handle_push)
+        # Query the current state when entity is added
+        await self._query_initial_state()
 
     async def async_will_remove_from_hass(self) -> None:
         """Unregister callbacks."""
         self._client.unregister_callback(self._handle_push)
+
+    async def _query_initial_state(self) -> None:
+        """Query the initial state of the tracks power."""
+        LOGGER.debug("Querying initial tracks power state")
+        await self._client.send_command(CMD_STATE)
 
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
