@@ -10,10 +10,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 
 from .const import DOMAIN
-from .excs_client import EXCommandStationClient
+from .excs_client import (
+    EXCommandStationClient,
+    EXCSConnectionError,
+    EXCSError,
+    EXCSVersionError,
+)
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -28,12 +33,21 @@ PLATFORMS: list[Platform] = [
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up EX‑CommandStation from a config entry."""
+    """Set up EX-CommandStation from a config entry."""
     host = entry.data[CONF_HOST]
     port = entry.data[CONF_PORT]
 
     client = EXCommandStationClient(host, port)
-    await client.connect()
+
+    try:
+        await client.async_setup()
+    except EXCSConnectionError as err:
+        raise ConfigEntryNotReady from err
+    except EXCSVersionError as err:
+        raise ConfigEntryError from err
+    except EXCSError as err:
+        msg = f"Unexpected error: {err}"
+        raise ConfigEntryError(msg) from err
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = client
 

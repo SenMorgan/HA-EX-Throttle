@@ -9,7 +9,12 @@ from homeassistant.const import CONF_BASE, CONF_HOST, CONF_PORT, CONF_PROFILE_NA
 from slugify import slugify
 
 from .const import DEFAULT_PORT, DOMAIN, LOGGER
-from .excs_client import EXCommandStationClient, EXCommandStationConnectionError
+from .excs_client import (
+    EXCommandStationClient,
+    EXCSConnectionError,
+    EXCSError,
+    EXCSVersionError,
+)
 
 USER_SCHEMA = vol.Schema(
     {
@@ -36,11 +41,17 @@ class EXCommandStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             try:
                 client = EXCommandStationClient(host=host, port=port)
-                await client.connect()
+                await client.async_setup()
                 await client.disconnect()
-            except EXCommandStationConnectionError as e:
+            except EXCSConnectionError as e:
                 LOGGER.error("Connection error: %s", e)
                 _errors[CONF_BASE] = "cannot_connect"
+            except EXCSVersionError as e:
+                LOGGER.error("Unsupported version: %s", e)
+                _errors[CONF_BASE] = "unsupported_version"
+            except EXCSError as e:
+                LOGGER.error("Unexpected error: %s", e)
+                _errors[CONF_BASE] = "unknown"
             else:
                 # If the connection is successful, proceed to create the entry
                 LOGGER.info("Successfully connected to %s:%s", host, port)

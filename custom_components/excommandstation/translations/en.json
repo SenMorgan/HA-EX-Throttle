@@ -14,7 +14,9 @@
             }
         },
         "error": {
-            "cannot_connect": "Failed to connect to the EX-CommandStation"
+            "cannot_connect": "Failed to connect to the EX-CommandStation",
+            "unsupported_version": "Unsupported EX-CommandStation version",
+            "unknown": "Unknown error occurred"
         },
         "abort": {
             "already_configured": "Device is already configured"
