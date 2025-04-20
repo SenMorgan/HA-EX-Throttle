@@ -74,14 +74,6 @@ class EXCommandStationClient:
         """Parse a version string into a tuple of integers."""
         return tuple(int(part) for part in version_str.split("."))
 
-    def register_callback(self, callback: Callable) -> None:
-        """Register a callback to be called when a message is received."""
-        self._callbacks.add(callback)
-
-    def unregister_callback(self, callback: Callable) -> None:
-        """Unregister a callback."""
-        self._callbacks.discard(callback)
-
     async def async_setup(self) -> None:
         """Set up the EX-CommandStation client."""
         LOGGER.debug("Setting up EX-CommandStation client")
@@ -124,6 +116,14 @@ class EXCommandStationClient:
         self.connected = False
         LOGGER.debug("Disconnected from EX-CommandStation")
 
+    def register_callback(self, callback: Callable) -> None:
+        """Register a callback to be called when a message is received."""
+        self._callbacks.add(callback)
+
+    def unregister_callback(self, callback: Callable) -> None:
+        """Unregister a callback."""
+        self._callbacks.discard(callback)
+
     async def send_command(self, command: str) -> None:
         """Send a command to the EX-CommandStation."""
         LOGGER.debug("Sending command: %s", command)
@@ -133,7 +133,21 @@ class EXCommandStationClient:
         self._writer.write((command + "\r\n").encode("ascii"))
         await self._writer.drain()
 
-    async def handle_send_function(self, call: ServiceCall) -> None:
+    async def send_command_with_response(
+        self, command: str, expected_prefix: str
+    ) -> str:
+        """Send a command and wait for a response with the expected prefix."""
+        # Create a future to wait for the response and store it in the dictionary
+        future = asyncio.get_running_loop().create_future()
+        self._response_futures[expected_prefix] = future
+
+        try:
+            await self.send_command(command)
+            return await asyncio.wait_for(future, DEFAULT_TIMEOUT)
+        finally:
+            self._response_futures.pop(expected_prefix, None)
+
+    async def handle_set_loco_function(self, call: ServiceCall) -> None:
         """Handle the send function service call."""
         address = int(call.data["address"])
         func = int(call.data["function"])
@@ -152,20 +166,6 @@ class EXCommandStationClient:
         command = command_write_cv(address, cv, value)
         LOGGER.debug("Writing CV: address=%d, cv=%d, value=%d", address, cv, value)
         await self.send_command(command)
-
-    async def send_command_with_response(
-        self, command: str, expected_prefix: str
-    ) -> str:
-        """Send a command and wait for a response with the expected prefix."""
-        # Create a future to wait for the response and store it in the dictionary
-        future = asyncio.get_running_loop().create_future()
-        self._response_futures[expected_prefix] = future
-
-        try:
-            await self.send_command(command)
-            return await asyncio.wait_for(future, DEFAULT_TIMEOUT)
-        finally:
-            self._response_futures.pop(expected_prefix, None)
 
     async def _get_excs_system_info(self) -> None:
         """Request system information from the EX-CommandStation."""
