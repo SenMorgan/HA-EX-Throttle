@@ -97,11 +97,11 @@ class EXCSTracksPowerSwitch(EXCSBaseSwitch):
 
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
-        if RESP_TRACKS_ON in message:
+        if message == RESP_TRACKS_ON:
             LOGGER.debug("Received tracks state ON")
             self._attr_is_on = True
             self.async_write_ha_state()
-        elif RESP_TRACKS_OFF in message:
+        elif message == RESP_TRACKS_OFF:
             LOGGER.debug("Received tracks state OFF")
             self._attr_is_on = False
             self.async_write_ha_state()
