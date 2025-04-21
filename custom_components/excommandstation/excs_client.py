@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -67,6 +68,7 @@ class EXCommandStationClient:
         self._writer = None
         self._callbacks = set()
         self._listen_task = None
+        self._listener_ready_event = asyncio.Event()
         self._response_futures: dict[str, asyncio.Future] = {}
 
     @classmethod
@@ -93,7 +95,12 @@ class EXCommandStationClient:
             )
             LOGGER.debug("Connected to EX-CommandStation")
             self.connected = True
+
+            # Start the listener task and wait for it to be ready
             self._listen_task = asyncio.create_task(self._listen())
+            await asyncio.wait_for(
+                self._listener_ready_event.wait(), timeout=DEFAULT_TIMEOUT
+            )
 
         except TimeoutError:
             msg = "Timeout while connecting to EX-CommandStation"
@@ -106,14 +113,31 @@ class EXCommandStationClient:
             )
             raise EXCSConnectionError(msg) from err
 
+        if self._reader is None or self._writer is None:
+            msg = "Reader or writer not initialized properly"
+            LOGGER.error(msg)
+            raise EXCSConnectionError(msg)
+
+        LOGGER.debug("EX-CommandStation connection established")
+
     async def disconnect(self) -> None:
         """Disconnect from the EX-CommandStation."""
-        if self._writer:
-            self._writer.close()
-            await self._writer.wait_closed()
-        if self._listen_task:
+        self.connected = False  # Mark as disconnected first to signal the listener loop
+
+        if self._listen_task and not self._listen_task.done():
             self._listen_task.cancel()
-        self.connected = False
+            with contextlib.suppress(asyncio.TimeoutError, asyncio.CancelledError):
+                LOGGER.warning("Waiting for listener task to finish")
+                await asyncio.wait_for(self._listen_task, timeout=2)
+
+        if self._writer:
+            try:
+                self._writer.close()
+                await self._writer.wait_closed()
+            except OSError as err:
+                # Handle potential errors during writer close
+                LOGGER.debug("Error closing writer: %s", err)
+
         LOGGER.debug("Disconnected from EX-CommandStation")
 
     def register_callback(self, callback: Callable) -> None:
@@ -128,8 +152,11 @@ class EXCommandStationClient:
         """Send a command to the EX-CommandStation."""
         LOGGER.debug("Sending command: %s", command)
         if not self.connected or self._writer is None:
-            LOGGER.error("Can't send command, not connected")
-            raise EXCSConnectionError
+            msg = "Cannot send command: not connected to EX-CommandStation"
+            LOGGER.error(msg)
+            raise EXCSConnectionError(msg)
+
+        # Send the command to the EX-CommandStation
         self._writer.write((command + "\r\n").encode("ascii"))
         await self._writer.drain()
 
@@ -141,11 +168,22 @@ class EXCommandStationClient:
         future = asyncio.get_running_loop().create_future()
         self._response_futures[expected_prefix] = future
 
-        try:
-            await self.send_command(command)
-            return await asyncio.wait_for(future, DEFAULT_TIMEOUT)
-        finally:
-            self._response_futures.pop(expected_prefix, None)
+        await self.send_command(command)
+
+        # Wait for the response or timeout and remove the future from the dictionary
+        response = await asyncio.wait_for(future, timeout=DEFAULT_TIMEOUT)
+        self._response_futures.pop(expected_prefix, None)
+
+        # Check if the response starts with the expected prefix
+        if not response.startswith(expected_prefix):
+            msg = (
+                f"Unexpected response from EX-CommandStation: {response}. "
+                f"Expected prefix: {expected_prefix}"
+            )
+            LOGGER.error(msg)
+            raise EXCSInvalidResponseError(msg)
+
+        return response
 
     async def handle_set_loco_function(self, call: ServiceCall) -> None:
         """Handle the send function service call."""
@@ -181,6 +219,9 @@ class EXCommandStationClient:
             msg = "Timeout waiting for system info response from EX-CommandStation"
             LOGGER.error(msg)
             raise EXCSConnectionError(msg) from None
+        except EXCSError as err:
+            LOGGER.error("Error while getting system info: %s", err)
+            raise
 
         # Parse the response and extract system information
         if match := RESP_EXCS_SYS_INFO_REGEX.match(response):
@@ -221,7 +262,9 @@ class EXCommandStationClient:
 
     async def _listen(self) -> None:
         """Listen for incoming messages from the EX-CommandStation."""
-        LOGGER.debug("Starting listener task")
+        self._listener_ready_event.set()  # Notify that the listener task is ready
+        LOGGER.debug("Listener started")
+
         try:
             while True:
                 # If the connection is closed, break the loop
@@ -234,26 +277,28 @@ class EXCommandStationClient:
                     LOGGER.warning("Connection closed")
                     break
                 message = line.decode("ascii").strip()
-                LOGGER.debug("Received: %s", message)
+                LOGGER.debug("Received message: %s", message)
 
-                # Check if the message was awaited
-                if await self._process_message(message):
-                    LOGGER.debug("Received awaited message: %s", message)
-                else:
-                    # Notify registered callbacks if the message was not awaited
-                    LOGGER.debug("Received message: %s", message)
-                    self._notify(message)
+                # Message was awaited via send_command_with_response()
+                if await self._handle_future_response(message):
+                    continue
+
+                # Message is a push update — notify subscribers
+                self._notify(message)
 
         except asyncio.CancelledError:
             LOGGER.debug("Listener task cancelled")
         except OSError as e:
             LOGGER.exception("Error while reading from EX-CommandStation: %s", e)
+        finally:
+            self._listener_ready_event.clear()
 
-    async def _process_message(self, message: str) -> bool:
-        """Process a received message from the EX-CommandStation."""
+    async def _handle_future_response(self, message: str) -> bool:
+        """Handle a response if it matches a registered future."""
         for prefix, future in self._response_futures.items():
             if message.startswith(prefix) and not future.done():
                 future.set_result(message)
+                LOGGER.debug("Future response set for prefix: %s", prefix)
                 return True
 
         return False
