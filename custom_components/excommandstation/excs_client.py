@@ -93,11 +93,15 @@ class EXCommandStationClient:
             self._reader, self._writer = await asyncio.open_connection(
                 self.host, self.port
             )
-            LOGGER.debug("Connected to EX-CommandStation")
+            LOGGER.debug("Connected to EX-CommandStation, initializing listener...")
             self.connected = True
 
-            # Start the listener task and wait for it to be ready
-            self._listen_task = asyncio.create_task(self._listen())
+            # Start the listener task
+            if not self._listen_task:
+                self._listen_task = asyncio.create_task(self._listen())
+                LOGGER.debug("Listener task started")
+
+            # Wait for the listener to be ready
             await asyncio.wait_for(
                 self._listener_ready_event.wait(), timeout=DEFAULT_TIMEOUT
             )
@@ -118,7 +122,7 @@ class EXCommandStationClient:
             LOGGER.error(msg)
             raise EXCSConnectionError(msg)
 
-        LOGGER.debug("EX-CommandStation connection established")
+        LOGGER.debug("Successfully connected to EX-CommandStation")
 
     async def disconnect(self) -> None:
         """Disconnect from the EX-CommandStation."""
@@ -139,6 +143,31 @@ class EXCommandStationClient:
                 LOGGER.debug("Error closing writer: %s", err)
 
         LOGGER.debug("Disconnected from EX-CommandStation")
+
+    async def _reconnect(self) -> None:
+        """Attempt to reconnect to the EX-CommandStation."""
+        if self._writer:
+            with contextlib.suppress(OSError):
+                self._writer.close()
+                await self._writer.wait_closed()
+        self._writer = None
+        self._reader = None
+        self.connected = False
+
+        LOGGER.debug("Attempting to reconnect to EX-CommandStation")
+        retries = 0
+        while not self.connected:
+            try:
+                await self.connect()
+                LOGGER.info(
+                    "Reconnected to EX-CommandStation after %d retries", retries
+                )
+                # Send system info request to update entities states after reconnect
+                await self.send_command(CMD_EXCS_SYS_INFO)
+            except EXCSConnectionError as err:
+                retries += 1
+                LOGGER.warning("Reconnect attempt %d failed: %s", retries, err)
+                await asyncio.sleep(min(2**retries, 30))  # Exponential backoff
 
     def register_callback(self, callback: Callable) -> None:
         """Register a callback to be called when a message is received."""
@@ -267,31 +296,38 @@ class EXCommandStationClient:
 
         try:
             while True:
-                # If the connection is closed, break the loop
                 if not self.connected or self._reader is None:
-                    LOGGER.warning("Listener task cancelled, not connected")
-                    break
-                # Read a line from the EX-CommandStation
-                line = await self._reader.readline()
-                if not line:
-                    LOGGER.warning("Connection closed")
-                    break
-                message = line.decode("ascii").strip()
-                LOGGER.debug("Received message: %s", message)
-
-                # Message was awaited via send_command_with_response()
-                if await self._handle_future_response(message):
+                    LOGGER.warning("Listener task detected disconnection")
+                    await self._reconnect()
                     continue
 
-                # Message is a push update — notify subscribers
-                self._notify(message)
+                try:
+                    # Read a line from the EX-CommandStation
+                    line = await self._reader.readline()
+                    if not line:
+                        LOGGER.warning("Connection closed by EX-CommandStation")
+                        await self._reconnect()
+                        continue
 
-        except asyncio.CancelledError:
-            LOGGER.debug("Listener task cancelled")
-        except OSError as e:
-            LOGGER.exception("Error while reading from EX-CommandStation: %s", e)
+                    message = line.decode("ascii").strip()
+                    LOGGER.debug("Received message: %s", message)
+
+                    # Message was awaited via send_command_with_response()
+                    if await self._handle_future_response(message):
+                        continue
+
+                    # Message is a push update — notify subscribers
+                    self._notify(message)
+
+                except OSError as err:
+                    LOGGER.error("Error while reading from EX-CommandStation: %s", err)
+                    await self._reconnect()
+                except asyncio.CancelledError:
+                    LOGGER.debug("Listener task cancelled")
+                    break
         finally:
             self._listener_ready_event.clear()
+            LOGGER.debug("Listener task cleanup complete")
 
     async def _handle_future_response(self, message: str) -> bool:
         """Handle a response if it matches a registered future."""
