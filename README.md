@@ -9,8 +9,8 @@ This custom integration allows [Home Assistant](https://www.home-assistant.io/) 
 ### Core
 - [x] Communication with EX-CommandStation over Telnet
 - [x] Configuration via UI with connection validation
-- [ ] EX-CommandStation version validation
-- [ ] Reconnect logic with backoff (device availability monitoring)
+- [x] EX-CommandStation version validation
+- [x] Reconnect logic with backoff (device availability monitoring)
 
 ### Switches & Controls
 - [x] Tracks power toggle (common for Main and Program tracks)
