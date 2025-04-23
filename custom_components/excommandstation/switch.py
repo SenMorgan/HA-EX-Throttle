@@ -42,23 +42,21 @@ class EXCSTracksPowerSwitch(EXCSEntity, SwitchEntity):
         """Initialize the switch."""
         super().__init__(client)
         self._attr_name = "Tracks Power"
-        self._attr_unique_id = f"{client.host}_tracks_power"
         self.entity_description = SwitchEntityDescription(
             key="tracks_power",
             icon="mdi:power",
         )
+        self._attr_unique_id = f"{client.host}_{self.entity_description.key}"
 
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
         if message == RESP_TRACKS_ON:
             LOGGER.debug("Received tracks state ON")
             self._attr_is_on = True
-            self._attr_available = True
             self.async_write_ha_state()
         elif message == RESP_TRACKS_OFF:
             LOGGER.debug("Received tracks state OFF")
             self._attr_is_on = False
-            self._attr_available = True
             self.async_write_ha_state()
 
     async def async_turn_on(self, **_: Any) -> None:

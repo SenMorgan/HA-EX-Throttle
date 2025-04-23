@@ -16,7 +16,7 @@ from .commands import (
     command_set_function,
     command_write_cv,
 )
-from .const import DEFAULT_TIMEOUT, LOGGER, MIN_SUPPORTED_VERSION
+from .const import DEFAULT_TIMEOUT, LISTENER_TIMEOUT, LOGGER, MIN_SUPPORTED_VERSION
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -66,7 +66,8 @@ class EXCommandStationClient:
         self.system_info = EXCSSystemInfo()
         self._reader = None
         self._writer = None
-        self._callbacks = set()
+        self._push_callbacks = set()
+        self._connection_callbacks = set()
         self._listen_task = None
         self._listener_ready_event = asyncio.Event()
         self._response_futures: dict[str, asyncio.Future] = {}
@@ -89,15 +90,21 @@ class EXCommandStationClient:
     async def connect(self) -> None:
         """Connect to the EX-CommandStation."""
         LOGGER.debug("Connecting to EX-CommandStation at %s:%s", self.host, self.port)
+
+        # Already connected
+        if self.connected and self._reader is not None and self._writer is not None:
+            return
+
         try:
             self._reader, self._writer = await asyncio.open_connection(
                 self.host, self.port
             )
             LOGGER.debug("Connected to EX-CommandStation, initializing listener...")
-            self.connected = True
+            # Mark as connected and notify entities
+            self._notify_connection_state(connected=True)
 
             # Start the listener task
-            if not self._listen_task:
+            if self._listen_task is None or self._listen_task.done():
                 self._listen_task = asyncio.create_task(self._listen())
                 LOGGER.debug("Listener task started")
 
@@ -109,73 +116,110 @@ class EXCommandStationClient:
         except TimeoutError:
             msg = "Timeout while connecting to EX-CommandStation"
             LOGGER.error(msg)
+            self._notify_connection_state(connected=False)
             raise EXCSConnectionError(msg) from None
         except OSError as err:
             msg = (
                 f"Failed to connect to EX-CommandStation at {self.host}:{self.port}: "
                 f"{err}"
             )
+            self._notify_connection_state(connected=False)
             raise EXCSConnectionError(msg) from err
 
         if self._reader is None or self._writer is None:
             msg = "Reader or writer not initialized properly"
             LOGGER.error(msg)
+            self._notify_connection_state(connected=False)
             raise EXCSConnectionError(msg)
 
         LOGGER.debug("Successfully connected to EX-CommandStation")
 
     async def disconnect(self) -> None:
         """Disconnect from the EX-CommandStation."""
-        self.connected = False  # Mark as disconnected first to signal the listener loop
-
+        # Cancel listener task
         if self._listen_task and not self._listen_task.done():
             self._listen_task.cancel()
             with contextlib.suppress(asyncio.TimeoutError, asyncio.CancelledError):
-                LOGGER.warning("Waiting for listener task to finish")
                 await asyncio.wait_for(self._listen_task, timeout=2)
 
+        # Close writer
         if self._writer:
             try:
                 self._writer.close()
                 await self._writer.wait_closed()
             except OSError as err:
-                # Handle potential errors during writer close
                 LOGGER.debug("Error closing writer: %s", err)
 
+        self._reader = None
+        self._writer = None
+        self._listen_task = None
+
+        # Update state and notify entities
+        self._notify_connection_state(connected=False)
         LOGGER.debug("Disconnected from EX-CommandStation")
 
     async def _reconnect(self) -> None:
-        """Attempt to reconnect to the EX-CommandStation."""
+        """Attempt to reconnect to the EX-CommandStation with exponential backoff."""
+        # If we were previously connected, clean up
         if self._writer:
             with contextlib.suppress(OSError):
                 self._writer.close()
                 await self._writer.wait_closed()
+
         self._writer = None
         self._reader = None
-        self.connected = False
+        self._notify_connection_state(connected=False)
 
-        LOGGER.debug("Attempting to reconnect to EX-CommandStation")
+        LOGGER.info("Connection to EX-CommandStation lost, attempting to reconnect")
         retries = 0
+
         while not self.connected:
             try:
                 await self.connect()
                 LOGGER.info(
-                    "Reconnected to EX-CommandStation after %d retries", retries
+                    "Reconnected to EX-CommandStation after %d attempts", retries + 1
                 )
+
                 # Send system info request to update entities states after reconnect
                 await self.send_command(CMD_EXCS_SYS_INFO)
+
             except EXCSConnectionError as err:
                 retries += 1
-                LOGGER.warning("Reconnect attempt %d failed: %s", retries, err)
-                await asyncio.sleep(min(2**retries, 30))  # Exponential backoff
+                backoff = min(2**retries, 30)  # Exponential backoff, max 30 seconds
+                LOGGER.warning(
+                    "Reconnect attempt %d failed: %s. Retrying in %d seconds",
+                    retries,
+                    err,
+                    backoff,
+                )
+                await asyncio.sleep(backoff)
 
-    def register_callback(self, callback: Callable) -> None:
-        """Register a callback to be called when a message is received."""
-        self._callbacks.add(callback)
+    def register_connection_callback(self, callback: Callable[[bool], None]) -> None:
+        """Register a callback to be called when the connection state changes."""
+        self._connection_callbacks.add(callback)
 
-    def unregister_callback(self, callback: Callable) -> None:
-        """Unregister a callback."""
-        self._callbacks.discard(callback)
+        # Immediately notify of current state if connected
+        if callback and self.connected:
+            callback(self.connected)
+
+    def unregister_connection_callback(self, callback: Callable[[bool], None]) -> None:
+        """Unregister a connection state callback."""
+        self._connection_callbacks.discard(callback)
+
+    def _notify_connection_state(self, *, connected: bool) -> None:
+        """Notify all registered callbacks of connection state change."""
+        if connected != self.connected:
+            self.connected = connected
+            for callback in self._connection_callbacks:
+                callback(connected=connected)
+
+    def register_push_callback(self, callback: Callable[[str], None]) -> None:
+        """Register a callback to be called when a push message is received."""
+        self._push_callbacks.add(callback)
+
+    def unregister_push_callback(self, callback: Callable[[str], None]) -> None:
+        """Unregister a push message callback."""
+        self._push_callbacks.discard(callback)
 
     async def send_command(self, command: str) -> None:
         """Send a command to the EX-CommandStation."""
@@ -303,7 +347,9 @@ class EXCommandStationClient:
 
                 try:
                     # Read a line from the EX-CommandStation
-                    line = await self._reader.readline()
+                    line = await asyncio.wait_for(
+                        self._reader.readline(), timeout=LISTENER_TIMEOUT
+                    )
                     if not line:
                         LOGGER.warning("Connection closed by EX-CommandStation")
                         await self._reconnect()
@@ -319,6 +365,9 @@ class EXCommandStationClient:
                     # Message is a push update — notify subscribers
                     self._notify(message)
 
+                except TimeoutError:
+                    LOGGER.warning("Listener timeout, reconnecting...")
+                    await self._reconnect()
                 except OSError as err:
                     LOGGER.error("Error while reading from EX-CommandStation: %s", err)
                     await self._reconnect()
@@ -341,5 +390,5 @@ class EXCommandStationClient:
 
     def _notify(self, message: str) -> None:
         """Notify all registered callbacks with the received message."""
-        for cb in self._callbacks:
+        for cb in self._push_callbacks:
             cb(message)
