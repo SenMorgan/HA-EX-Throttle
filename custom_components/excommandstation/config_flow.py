@@ -1,4 +1,4 @@
-"""Config flow for the EX‑CommandStation integration."""
+"""Config flow for the EX-CommandStation integration."""
 
 from typing import Any
 
@@ -26,7 +26,7 @@ USER_SCHEMA = vol.Schema(
 
 
 class EXCommandStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow for EX‑CommandStation."""
+    """Config flow for EX-CommandStation."""
 
     VERSION = 1
 
@@ -55,11 +55,13 @@ class EXCommandStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 # If the connection is successful, proceed to create the entry
                 LOGGER.info("Successfully connected to %s:%s", host, port)
+
                 # Check if we already have this station configured
                 unique_id = slugify(f"{host}:{port}")
                 await self.async_set_unique_id(unique_id)
                 self._abort_if_unique_id_configured()
-                # If the user provided a profile name, use it; otherwise, use the default
+
+                # Use provided profile name or default
                 title = (
                     user_input[CONF_PROFILE_NAME]
                     if user_input.get(CONF_PROFILE_NAME)

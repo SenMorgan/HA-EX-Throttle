@@ -1,4 +1,4 @@
-"""Constants for the EX‑CommandStation integration."""
+"""Constants for the EX-CommandStation integration."""
 
 from logging import Logger, getLogger
 from typing import Final
