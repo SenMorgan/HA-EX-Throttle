@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.helpers.device_registry import DeviceInfo
 
+from .entity import EXCSEntity
+
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
@@ -30,80 +32,34 @@ async def async_setup_entry(
     """Set up the EX-CommandStation switch platform."""
     client = hass.data[DOMAIN][entry.entry_id]
 
-    # Create basic device info
-    device_info = DeviceInfo(
-        identifiers={(DOMAIN, client.host)},
-        name="EX-CommandStation",
-        manufacturer="DCC-EX",
-        model="EX-CommandStation",
-        sw_version=client.system_info.version,
-        hw_version=(
-            f"{client.system_info.processor_type} / {client.system_info.motor_controller}"
-        ),
-    )
-
     # Add tracks power switch
-    async_add_entities([EXCSTracksPowerSwitch(client, device_info)])
+    async_add_entities([EXCSTracksPowerSwitch(client)])
 
 
-class EXCSBaseSwitch(SwitchEntity):
-    """Base class for EX-CommandStation switches."""
-
-    _attr_has_entity_name = True
-
-    def __init__(
-        self,
-        client: EXCommandStationClient,
-        device_info: DeviceInfo,
-        name: str,
-        *,
-        initial_state: bool = False,
-    ) -> None:
-        """Initialize the switch."""
-        self._client = client
-        self._attr_device_info = device_info
-        self._attr_name = name
-        self._attr_is_on = initial_state
-
-
-class EXCSTracksPowerSwitch(EXCSBaseSwitch):
+class EXCSTracksPowerSwitch(EXCSEntity, SwitchEntity):
     """Representation of the EX-CommandStation tracks power switch."""
 
-    def __init__(
-        self,
-        client: EXCommandStationClient,
-        device_info: DeviceInfo,
-        *,
-        initial_state: bool = False,
-    ) -> None:
+    def __init__(self, client: EXCommandStationClient) -> None:
         """Initialize the switch."""
-        super().__init__(
-            client, device_info, "Tracks Power", initial_state=initial_state
-        )
-        self._attr_is_on = False
+        super().__init__(client)
+        self._attr_name = "Tracks Power"
         self._attr_unique_id = f"{client.host}_tracks_power"
         self.entity_description = SwitchEntityDescription(
             key="tracks_power",
             icon="mdi:power",
         )
 
-    async def async_added_to_hass(self) -> None:
-        """Register callbacks."""
-        self._client.register_callback(self._handle_push)
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Unregister callbacks."""
-        self._client.unregister_callback(self._handle_push)
-
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
         if message == RESP_TRACKS_ON:
             LOGGER.debug("Received tracks state ON")
             self._attr_is_on = True
+            self._attr_available = True
             self.async_write_ha_state()
         elif message == RESP_TRACKS_OFF:
             LOGGER.debug("Received tracks state OFF")
             self._attr_is_on = False
+            self._attr_available = True
             self.async_write_ha_state()
 
     async def async_turn_on(self, **_: Any) -> None:
