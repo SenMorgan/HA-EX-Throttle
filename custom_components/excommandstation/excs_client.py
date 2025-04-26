@@ -230,7 +230,7 @@ class EXCommandStationClient:
             raise EXCSConnectionError(msg)
 
         # Send the command to the EX-CommandStation
-        self._writer.write((command + "\r\n").encode("ascii"))
+        self._writer.write((f"<{command}>\r\n").encode("ascii"))
         await self._writer.drain()
 
     async def send_command_with_response(
@@ -356,14 +356,7 @@ class EXCommandStationClient:
                         continue
 
                     message = line.decode("ascii").strip()
-                    LOGGER.debug("Received message: %s", message)
-
-                    # Message was awaited via send_command_with_response()
-                    if await self._handle_future_response(message):
-                        continue
-
-                    # Message is a push update — notify subscribers
-                    self._notify(message)
+                    await self._parse_message(message)
 
                 except TimeoutError:
                     LOGGER.warning("Listener timeout, reconnecting...")
@@ -377,6 +370,30 @@ class EXCommandStationClient:
         finally:
             self._listener_ready_event.clear()
             LOGGER.debug("Listener task cleanup complete")
+
+async def _parse_message(self, message: str) -> None:
+        """Parse incoming messages from the EX-CommandStation."""
+        LOGGER.debug("Received message: %s", message)
+
+        # Check if message start with "<" and ends with ">"
+        if not (message.startswith("<") and message.endswith(">")):
+            LOGGER.warning("Invalid message format from EX-CommandStation: %s", message)
+            return
+
+        # Remove the angle brackets
+        message = message[1:-1]
+
+        # Check if message is empty or indicates failure
+        if message == "":
+            LOGGER.warning("Empty message received from EX-CommandStation")
+            return
+
+        # Message was awaited via send_command_with_response()
+        if await self._handle_future_response(message):
+            return
+
+        # Message is a push update — notify subscribers
+        self._notify(message)
 
     async def _handle_future_response(self, message: str) -> bool:
         """Handle a response if it matches a registered future."""
