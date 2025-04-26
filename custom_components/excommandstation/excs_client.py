@@ -7,8 +7,6 @@ import contextlib
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from homeassistant.exceptions import InvalidStateError
-
 from .commands import (
     CMD_EXCS_SYS_INFO,
     RESP_EXCS_SYS_INFO_PREFIX,
@@ -17,27 +15,18 @@ from .commands import (
     command_write_cv,
 )
 from .const import DEFAULT_TIMEOUT, LISTENER_TIMEOUT, LOGGER, MIN_SUPPORTED_VERSION
+from .excs_exceptions import (
+    EXCSConnectionError,
+    EXCSError,
+    EXCSInvalidResponseError,
+    EXCSValueError,
+    EXCSVersionError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from homeassistant.core import ServiceCall
-
-
-class EXCSError(InvalidStateError):
-    """Base class for all exceptions raised by the EX-CommandStation integration."""
-
-
-class EXCSConnectionError(EXCSError):
-    """Exception to indicate a general connection error."""
-
-
-class EXCSInvalidResponseError(EXCSError):
-    """Exception to indicate an invalid response from the EX-CommandStation."""
-
-
-class EXCSVersionError(EXCSError):
-    """Exception to indicate an unsupported version of the EX-CommandStation."""
 
 
 @dataclass
