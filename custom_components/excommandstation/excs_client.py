@@ -22,6 +22,7 @@ from .excs_exceptions import (
     EXCSValueError,
     EXCSVersionError,
 )
+from .turnout import EXCSTurnout, EXCSTurnoutConsts
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -53,6 +54,7 @@ class EXCommandStationClient:
         self.port = port
         self.connected = False
         self.system_info = EXCSSystemInfo()
+        self.turnouts: list[EXCSTurnout] = []
         self._reader = None
         self._writer = None
         self._push_callbacks = set()
@@ -75,6 +77,8 @@ class EXCommandStationClient:
         # Fetch EX-CommandStation system info and validate version
         await self._get_excs_system_info()
         await self._validate_excs_version()
+        # Fetch the list of turnouts
+        await self._get_turnouts()
 
     async def connect(self) -> None:
         """Connect to the EX-CommandStation."""
@@ -267,6 +271,73 @@ class EXCommandStationClient:
         LOGGER.debug("Writing CV: address=%d, cv=%d, value=%d", address, cv, value)
         await self.send_command(command)
 
+    async def _get_turnouts(self) -> None:
+        """Request the list of turnouts from the EX-CommandStation."""
+        if not self.connected:
+            raise EXCSConnectionError
+
+        LOGGER.debug("Requesting list of turnouts from EX-CommandStation")
+        try:
+            response = await self.send_command_with_response(
+                EXCSTurnoutConsts.CMD_LIST_TURNOUTS,
+                EXCSTurnoutConsts.RESP_PREFIX,
+            )
+        except TimeoutError:
+            msg = "Timeout waiting for turnout list response from EX-CommandStation"
+            LOGGER.error(msg)
+            raise EXCSConnectionError(msg) from None
+        except EXCSError as err:
+            LOGGER.error("Error while getting turnout list: %s", err)
+            raise
+
+        # Handle the turnout list response here
+        if match := EXCSTurnoutConsts.RESP_LIST_REGEX.match(response):
+            turnout_ids = match.group("ids")
+            if turnout_ids:
+                LOGGER.info("Turnout IDs: %s", turnout_ids)
+            else:
+                LOGGER.info("No turnouts found")
+                return
+        else:
+            msg = f"Invalid response from EX-CommandStation on turnout list: {response}"
+            LOGGER.error(msg)
+            raise EXCSInvalidResponseError(msg)
+
+        # Send command to get detailed information about each turnout
+        for turnout_id in turnout_ids.split():
+            try:
+                response = await self.send_command_with_response(
+                    f"{EXCSTurnoutConsts.CMD_LIST_TURNOUTS} {turnout_id}>",
+                    EXCSTurnoutConsts.RESP_PREFIX,
+                )
+            except TimeoutError:
+                msg = f"Timeout waiting for turnout details from EX-CommandStation for ID {turnout_id}"
+                LOGGER.error(msg)
+                raise EXCSConnectionError(msg) from None
+            except EXCSError as err:
+                LOGGER.error("Error while getting turnout detail: %s", err)
+                raise
+
+            # Handle the turnout detail response here
+            if match := EXCSTurnoutConsts.RESP_DETAILS_REGEX.match(response):
+                try:
+                    turnout = EXCSTurnout(
+                        turnout_id=int(match.group("id")),
+                        state=match.group("state"),
+                        description=match.group("desc").strip('"'),
+                    )
+                    # Add the turnout to the list
+                    self.turnouts.append(turnout)
+                    # Print representation of the turnout
+                    LOGGER.debug("Turnout detail: %s", turnout)
+                except EXCSValueError as err:
+                    LOGGER.error("Error parsing turnout detail: %s", err)
+                    raise
+            else:
+                msg = f"Invalid response from EX-CommandStation on turnout detail: {response}"
+                LOGGER.error(msg)
+                raise EXCSInvalidResponseError(msg)
+
     async def _get_excs_system_info(self) -> None:
         """Request system information from the EX-CommandStation."""
         if not self.connected:
@@ -360,7 +431,7 @@ class EXCommandStationClient:
             self._listener_ready_event.clear()
             LOGGER.debug("Listener task cleanup complete")
 
-def _parse_message(self, message: str) -> None:
+    def _parse_message(self, message: str) -> None:
         """Parse incoming messages from the EX-CommandStation."""
         LOGGER.debug("Received message: %s", message)
 
@@ -397,7 +468,7 @@ def _parse_message(self, message: str) -> None:
     def _notify(self, message: str) -> None:
         """Notify all registered callbacks with the received message."""
         for cb in self._push_callbacks:
-try:
-            cb(message)
-except EXCSError as err:
+            try:
+                cb(message)
+            except EXCSError as err:
                 LOGGER.error("Error notifying callback: %s", err)

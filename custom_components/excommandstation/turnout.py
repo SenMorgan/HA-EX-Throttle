@@ -1,0 +1,106 @@
+"""Turnout class for EX-CommandStation."""
+
+from __future__ import annotations
+
+import re
+from enum import Enum
+from typing import Final
+
+from .excs_exceptions import EXCSInvalidResponseError, EXCSValueError
+
+
+class EXCSTurnoutConsts:
+    """Constants for EX-CommandStation turnout."""
+
+    # Commands
+    CMD_LIST_TURNOUTS: Final[str] = "JT"
+
+    # Regular expressions and corresponding prefixes for parsing responses
+    RESP_STATE_PREFIX: Final[str] = "H "
+    RESP_STATE_REGEX: Final[re.Pattern] = re.compile(r"H (\d+) (\d)")
+
+    RESP_PREFIX: Final[str] = "jT "
+    RESP_LIST_REGEX: Final[re.Pattern] = re.compile(r"jT (?P<ids>(?:\d+(?:\s+\d+)*))")
+    RESP_DETAILS_REGEX: Final[re.Pattern] = re.compile(
+        r'jT\s+(?P<id>\d+)\s+(?P<state>[CTX])(?:\s+(?P<desc>"[^"]*"))?'
+    )
+
+
+class TurnoutState(Enum):
+    """Enum representing turnout states."""
+
+    CLOSED = "C"  # straight
+    THROWN = "T"  # diverging
+
+    @classmethod
+    def from_char(cls, value: str) -> TurnoutState:
+        """Convert a string value to a TurnoutState enum."""
+        for state in cls:
+            if state.value == value:
+                return state
+        # If no match found, raise an error
+        msg = (
+            f"Invalid turnout state: {value}. Expected one of: {[s.value for s in cls]}"
+        )
+        raise EXCSValueError(msg)
+
+    @classmethod
+    def from_value(cls, value: str) -> TurnoutState:
+        """Convert a string value to a TurnoutState enum."""
+        if value.isdigit():
+            value_int = int(value)
+            if value_int == 0:
+                return cls.CLOSED
+            if value_int == 1:
+                return cls.THROWN
+
+        msg = (
+            f"Invalid turnout state value: {value_int}. "
+            f"Expected 0 (CLOSED) or 1 (THROWN)."
+        )
+        raise EXCSValueError(msg)
+
+
+class EXCSTurnout:
+    """Representation of a turnout in the EX-CommandStation."""
+
+    id: int = 0
+    state: TurnoutState = TurnoutState.CLOSED
+    description: str = ""
+
+    def __init__(self, turnout_id: int, state: str, description: str) -> None:
+        """Initialize the turnout."""
+        self.id = turnout_id
+        self.description = description or f"Turnout {turnout_id}"
+
+        # Normalize state to enum
+        self.state = TurnoutState.from_char(state)
+
+    def __repr__(self) -> str:
+        """Return a string representation of the turnout."""
+        return (
+            f"<EXCSTurnout id={self.id} "
+            f"state={self.state.name} "
+            f"description='{self.description}'>"
+        )
+
+    @classmethod
+    def set_turnout(cls, turnout_id: int, state: TurnoutState) -> str:
+        """Set the state of a turnout."""
+        return f"T {turnout_id} {state.value}"
+
+    @classmethod
+    def parse_turnout_state(cls, message: str) -> tuple[int, TurnoutState]:
+        """Parse the turnout state from a message."""
+        match = EXCSTurnoutConsts.RESP_STATE_REGEX.match(message)
+        if not match:
+            msg = (
+                f"Invalid turnout state message: {message}. "
+                f"Expected format: '{EXCSTurnoutConsts.RESP_STATE_PREFIX}<id> <state>'"
+            )
+            raise EXCSInvalidResponseError(msg)
+        turnout_id = int(match.group(1))
+
+        # Here the state is expected to be a digit
+        state = TurnoutState.from_value(match.group(2))
+        return turnout_id, state

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 
 from .entity import EXCSEntity
+from .turnout import EXCSTurnout, EXCSTurnoutConsts, TurnoutState
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -33,6 +34,52 @@ async def async_setup_entry(
 
     # Add tracks power switch
     async_add_entities([EXCSTracksPowerSwitch(client)])
+
+    # Add turnout switches
+    if client.turnouts:
+        turnout_switches = [
+            EXCSTurnoutSwitch(client, turnout) for turnout in client.turnouts
+        ]
+        async_add_entities(turnout_switches)
+
+
+class EXCSTurnoutSwitch(EXCSEntity, SwitchEntity):
+    """Representation of a turnout switch."""
+
+    def __init__(self, client: EXCommandStationClient, turnout: EXCSTurnout) -> None:
+        """Initialize the switch."""
+        super().__init__(client)
+        self._turnout = turnout
+        self._attr_name = turnout.description
+        self.entity_description = SwitchEntityDescription(
+            key=f"turnout_{turnout.id}",
+            icon="mdi:source-branch",
+        )
+        self._attr_unique_id = f"{client.host}_{self.entity_description.key}"
+        # Assuming THROWN means the switch is on
+        self._attr_is_on = turnout.state == TurnoutState.THROWN
+
+    def _handle_push(self, message: str) -> None:
+        """Handle incoming messages from the EX-CommandStation."""
+        if message.startswith(EXCSTurnoutConsts.RESP_STATE_PREFIX):
+            turnout_id, state = EXCSTurnout.parse_turnout_state(message)
+            if turnout_id == self._turnout.id:
+                LOGGER.debug("Turnout %d %s", turnout_id, state.name)
+                # Update the state of the switch
+                self._attr_is_on = state == TurnoutState.THROWN
+                self.async_write_ha_state()
+
+    async def async_turn_on(self, **_: Any) -> None:
+        """Turn on the switch (set turnout to THROWN)."""
+        await self._client.send_command(
+            EXCSTurnout.set_turnout(self._turnout.id, TurnoutState.THROWN)
+        )
+
+    async def async_turn_off(self, **_: Any) -> None:
+        """Turn off the switch (set turnout to CLOSED)."""
+        await self._client.send_command(
+            EXCSTurnout.set_turnout(self._turnout.id, TurnoutState.CLOSED)
+        )
 
 
 class EXCSTracksPowerSwitch(EXCSEntity, SwitchEntity):
