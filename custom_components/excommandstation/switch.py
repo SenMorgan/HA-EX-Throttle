@@ -51,11 +51,11 @@ class EXCSTracksPowerSwitch(EXCSEntity, SwitchEntity):
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
         if message == RESP_TRACKS_ON:
-            LOGGER.debug("Received tracks state ON")
+            LOGGER.debug("Tracks power ON")
             self._attr_is_on = True
             self.async_write_ha_state()
         elif message == RESP_TRACKS_OFF:
-            LOGGER.debug("Received tracks state OFF")
+            LOGGER.debug("Tracks power OFF")
             self._attr_is_on = False
             self.async_write_ha_state()
 
