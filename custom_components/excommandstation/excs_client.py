@@ -345,7 +345,7 @@ class EXCommandStationClient:
                         continue
 
                     message = line.decode("ascii").strip()
-                    await self._parse_message(message)
+                    self._parse_message(message)
 
                 except TimeoutError:
                     LOGGER.warning("Listener timeout, reconnecting...")
@@ -360,7 +360,7 @@ class EXCommandStationClient:
             self._listener_ready_event.clear()
             LOGGER.debug("Listener task cleanup complete")
 
-async def _parse_message(self, message: str) -> None:
+def _parse_message(self, message: str) -> None:
         """Parse incoming messages from the EX-CommandStation."""
         LOGGER.debug("Received message: %s", message)
 
@@ -378,13 +378,13 @@ async def _parse_message(self, message: str) -> None:
             return
 
         # Message was awaited via send_command_with_response()
-        if await self._handle_future_response(message):
+        if self._handle_future_response(message):
             return
 
         # Message is a push update — notify subscribers
         self._notify(message)
 
-    async def _handle_future_response(self, message: str) -> bool:
+    def _handle_future_response(self, message: str) -> bool:
         """Handle a response if it matches a registered future."""
         for prefix, future in self._response_futures.items():
             if message.startswith(prefix) and not future.done():
@@ -397,4 +397,7 @@ async def _parse_message(self, message: str) -> None:
     def _notify(self, message: str) -> None:
         """Notify all registered callbacks with the received message."""
         for cb in self._push_callbacks:
+try:
             cb(message)
+except EXCSError as err:
+                LOGGER.error("Error notifying callback: %s", err)
