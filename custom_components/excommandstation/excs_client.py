@@ -461,5 +461,5 @@ class EXCommandStationClient:
         for cb in self._push_callbacks:
             try:
                 cb(message)
-            except EXCSError as err:
-                LOGGER.error("Error notifying callback: %s", err)
+            except EXCSError:
+                LOGGER.exception("Error notifying callback: %s")
