@@ -165,6 +165,7 @@ class EXCommandStationClient:
 
         LOGGER.info("Connection to EX-CommandStation lost, attempting to reconnect")
         retries = 0
+        max_backoff = 30  # Maximum backoff interval in seconds
 
         while not self.connected:
             try:
@@ -178,7 +179,7 @@ class EXCommandStationClient:
 
             except EXCSConnectionError as err:
                 retries += 1
-                backoff = min(2**retries, 30)  # Exponential backoff, max 30 seconds
+                backoff = min(2**retries, max_backoff)
                 LOGGER.warning(
                     "Reconnect attempt %d failed: %s. Retrying in %d seconds",
                     retries,
