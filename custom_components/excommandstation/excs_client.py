@@ -163,7 +163,7 @@ class EXCommandStationClient:
         self._reader = None
         self._notify_connection_state(connected=False)
 
-        LOGGER.info("Connection to EX-CommandStation lost, attempting to reconnect")
+        LOGGER.warning("Connection to EX-CommandStation lost, attempting to reconnect")
         retries = 0
         max_backoff = 30  # Maximum backoff interval in seconds
 
