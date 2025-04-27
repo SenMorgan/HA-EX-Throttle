@@ -104,3 +104,34 @@ class EXCSTurnout:
         # Here the state is expected to be a digit
         state = TurnoutState.from_value(match.group(2))
         return turnout_id, state
+
+    @classmethod
+    def parse_turnout_ids(cls, response: str) -> list[str]:
+        """Parse turnout IDs from a list turnouts response."""
+        if match := EXCSTurnoutConsts.RESP_LIST_REGEX.match(response):
+            turnout_ids = match.group("ids")
+            if turnout_ids:
+                return turnout_ids.split()
+            return []
+
+        msg = f"Invalid response for turnout list: {response}"
+        raise EXCSInvalidResponseError(msg)
+
+    @classmethod
+    def from_detail_response(cls, response: str) -> EXCSTurnout:
+        """Create a turnout instance from a detail response."""
+        if match := EXCSTurnoutConsts.RESP_DETAILS_REGEX.match(response):
+            try:
+                return cls(
+                    turnout_id=int(match.group("id")),
+                    state=match.group("state"),
+                    description=match.group("desc").strip('"')
+                    if match.group("desc")
+                    else "",
+                )
+            except EXCSValueError as err:
+                msg = f"Error parsing turnout detail: {err}"
+                raise EXCSValueError(msg) from err
+
+        msg = f"Invalid response for turnout detail: {response}"
+        raise EXCSInvalidResponseError(msg)
