@@ -34,7 +34,7 @@ class TurnoutState(Enum):
 
     @classmethod
     def from_char(cls, value: str) -> TurnoutState:
-        """Convert a string value to a TurnoutState enum."""
+        """Convert a character value (C or T) to a TurnoutState enum."""
         for state in cls:
             if state.value == value:
                 return state
@@ -45,8 +45,8 @@ class TurnoutState(Enum):
         raise EXCSValueError(msg)
 
     @classmethod
-    def from_value(cls, value: str) -> TurnoutState:
-        """Convert a string value to a TurnoutState enum."""
+    def from_digit(cls, value: str) -> TurnoutState:
+        """Convert a digit value (0 or 1) to a TurnoutState enum."""
         if value.isdigit():
             value_int = int(value)
             if value_int == 0:
@@ -102,7 +102,7 @@ class EXCSTurnout:
         turnout_id = int(match.group(1))
 
         # Here the state is expected to be a digit
-        state = TurnoutState.from_value(match.group(2))
+        state = TurnoutState.from_digit(match.group(2))
         return turnout_id, state
 
     @classmethod
