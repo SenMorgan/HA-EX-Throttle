@@ -19,7 +19,7 @@ class EXCSTurnoutConsts:
     RESP_STATE_PREFIX: Final[str] = "H "
     RESP_STATE_REGEX: Final[re.Pattern] = re.compile(r"H (\d+) (\d)")
 
-    RESP_PREFIX: Final[str] = "jT "
+    RESP_PREFIX: Final[str] = "jT"
     RESP_LIST_REGEX: Final[re.Pattern] = re.compile(r"jT (?P<ids>(?:\d+(?:\s+\d+)*))")
     RESP_DETAILS_REGEX: Final[re.Pattern] = re.compile(
         r'jT\s+(?P<id>\d+)\s+(?P<state>[CTX])(?:\s+(?P<desc>"[^"]*"))?'
@@ -108,6 +108,11 @@ class EXCSTurnout:
     @classmethod
     def parse_turnout_ids(cls, response: str) -> list[str]:
         """Parse turnout IDs from a list turnouts response."""
+        # Check for empty turnout list
+        if not response.removeprefix(EXCSTurnoutConsts.RESP_PREFIX):
+            return []
+
+        # Check for valid turnout list response
         if match := EXCSTurnoutConsts.RESP_LIST_REGEX.match(response):
             turnout_ids = match.group("ids")
             if turnout_ids:
