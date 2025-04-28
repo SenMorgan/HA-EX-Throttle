@@ -11,9 +11,9 @@ RESP_EXCS_SYS_INFO_REGEX: Final[re.Pattern] = re.compile(
     #   <iDCCEX version / microprocessorType / MotorControllerType / buildNumber>
     # Response example per practice:
     #   <iDCC-EX V-5.4.8 / ESP32 / STANDARD_MOTOR_SHIELD G-c389fe9>
-    r"iDCC-EX V-(?P<version>\d+\.\d+\.\d+) / "
-    r"(?P<microprocessor>[^/]+) / "
-    r"(?P<motor_controller>[^ ]+) "
+    r"iDCC-EX\s+V-(?P<version>\d+\.\d+\.\d+)\s+/\s+"
+    r"(?P<microprocessor>[^/]+)\s+/\s+"
+    r"(?P<motor_controller>[^ ]+)\s+"
     r"(?P<build_number>G-[a-f0-9]+)"
 )
 

@@ -16,11 +16,11 @@ class EXCSTurnoutConsts:
     CMD_LIST_TURNOUTS: Final[str] = "JT"
 
     # Regular expressions and corresponding prefixes for parsing responses
-    RESP_STATE_PREFIX: Final[str] = "H "
-    RESP_STATE_REGEX: Final[re.Pattern] = re.compile(r"H (\d+) (\d)")
+    RESP_STATE_PREFIX: Final[str] = "H"
+    RESP_STATE_REGEX: Final[re.Pattern] = re.compile(r"H\s+(\d+)\s+(\d)")
 
     RESP_PREFIX: Final[str] = "jT"
-    RESP_LIST_REGEX: Final[re.Pattern] = re.compile(r"jT (?P<ids>(?:\d+(?:\s+\d+)*))")
+    RESP_LIST_REGEX: Final[re.Pattern] = re.compile(r"jT\s+(?P<ids>(?:\d+(?:\s+\d+)*))")
     RESP_DETAILS_REGEX: Final[re.Pattern] = re.compile(
         r'jT\s+(?P<id>\d+)\s+(?P<state>[CTX])(?:\s+(?P<desc>"[^"]*"))?'
     )
