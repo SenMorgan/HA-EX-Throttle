@@ -11,6 +11,7 @@ from .const import DOMAIN
 
 if TYPE_CHECKING:
     from .excs_client import EXCommandStationClient
+    from .roster import EXCSRosterEntry
 
 
 class EXCSEntity(Entity):
@@ -53,3 +54,22 @@ class EXCSEntity(Entity):
         """Unregister callbacks."""
         self._client.unregister_push_callback(self._handle_push)
         self._client.unregister_connection_callback(self._handle_connection_state)
+
+
+class EXCSRosterEntity(EXCSEntity):
+    """Base class for EX-CommandStation roster entities."""
+
+    def __init__(
+        self, client: EXCommandStationClient, roster_entry: EXCSRosterEntry
+    ) -> None:
+        """Initialize the roster entity."""
+        super().__init__(client)
+
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{client.host}_loco_{roster_entry.id}")},
+            name=roster_entry.description,
+            manufacturer="DCC-EX",
+            model=roster_entry.description,
+            model_id=str(roster_entry.id),
+            via_device=(DOMAIN, client.host),
+        )

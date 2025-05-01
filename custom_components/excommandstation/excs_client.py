@@ -11,7 +11,6 @@ from .commands import (
     CMD_EXCS_SYS_INFO,
     RESP_EXCS_SYS_INFO_PREFIX,
     RESP_EXCS_SYS_INFO_REGEX,
-    command_set_function,
     command_write_cv,
 )
 from .const import DEFAULT_TIMEOUT, LISTENER_TIMEOUT, LOGGER, MIN_SUPPORTED_VERSION
@@ -21,6 +20,7 @@ from .excs_exceptions import (
     EXCSInvalidResponseError,
     EXCSVersionError,
 )
+from .roster import EXCSRosterConsts, EXCSRosterEntry
 from .turnout import EXCSTurnout, EXCSTurnoutConsts
 
 if TYPE_CHECKING:
@@ -54,6 +54,7 @@ class EXCommandStationClient:
         self.connected = False
         self.system_info = EXCSSystemInfo()
         self.turnouts: list[EXCSTurnout] = []
+        self.roster_entries: list[EXCSRosterEntry] = []
         self._reader = None
         self._writer = None
         self._push_callbacks = set()
@@ -78,6 +79,8 @@ class EXCommandStationClient:
         await self._validate_excs_version()
         # Fetch the list of turnouts
         await self._get_turnouts()
+        # Fetch the list of roster entries
+        await self._get_roster_entries()
 
     async def connect(self) -> None:
         """Connect to the EX-CommandStation."""
@@ -251,17 +254,6 @@ class EXCommandStationClient:
 
         return response
 
-    async def handle_set_loco_function(self, call: ServiceCall) -> None:
-        """Handle the send function service call."""
-        address = int(call.data["address"])
-        func = int(call.data["function"])
-        value = int(call.data["state"])  # Convert boolean state to int
-        command = command_set_function(address, func, value)
-        LOGGER.debug(
-            "Sending function: address=%d, function=%d, value=%d", address, func, value
-        )
-        await self.send_command(command)
-
     async def handle_write_cv(self, call: ServiceCall) -> None:
         """Handle the write CV service call."""
         address = int(call.data["address"])
@@ -328,6 +320,96 @@ class EXCommandStationClient:
             self.turnouts.append(turnout)
             # Print representation of the turnout
             LOGGER.debug("Turnout detail: %s", turnout)
+
+    async def _get_roster_ids(self) -> list[str]:
+        """Get the list of roster entry IDs from the EX-CommandStation."""
+        try:
+            response = await self.send_command_with_response(
+                EXCSRosterConsts.CMD_LIST_ROSTER_ENTRIES,
+                EXCSRosterConsts.RESP_LIST_PREFIX,
+            )
+            return EXCSRosterEntry.parse_roster_ids(response)
+        except TimeoutError:
+            msg = "Timeout waiting for roster list response"
+            LOGGER.error(msg)
+            raise EXCSConnectionError(msg) from None
+        except EXCSError as err:
+            LOGGER.error("Error getting roster list: %s", err)
+            raise
+
+    async def _get_roster_entry_details(self, roster_id: str) -> EXCSRosterEntry:
+        """Get details for a specific roster entry ID."""
+        try:
+            response = await self.send_command_with_response(
+                EXCSRosterConsts.CMD_GET_ROSTER_DETAILS_FMT.format(cab_id=roster_id),
+                EXCSRosterConsts.RESP_DETAILS_PREFIX_FMT.format(cab_id=roster_id),
+            )
+            return EXCSRosterEntry.from_detail_response(response)
+        except TimeoutError:
+            msg = f"Timeout waiting for roster details for ID {roster_id}"
+            LOGGER.error(msg)
+            raise EXCSConnectionError(msg) from None
+        except EXCSError as err:
+            LOGGER.error("Error getting roster detail: %s", err)
+            raise
+
+    async def _update_roster_functions(self, entry: EXCSRosterEntry) -> None:
+        """Update the functions of a roster entry."""
+        if not self.connected:
+            raise EXCSConnectionError
+
+        LOGGER.debug("Updating functions for roster entry: %s", entry)
+
+        try:
+            # Send command to update functions
+            response = await self.send_command_with_response(
+                EXCSRosterConsts.CMD_GET_LOCO_STATE_FMT.format(cab_id=entry.id),
+                EXCSRosterConsts.RESP_THROTTLE_PREFIX_FMT.format(cab_id=entry.id),
+            )
+
+            # Parse the response and update the entry
+            entry.process_throttle_response(response)
+        except TimeoutError:
+            msg = "Timeout waiting for roster function update response"
+            LOGGER.error(msg)
+            raise EXCSConnectionError(msg) from None
+        except EXCSError as err:
+            LOGGER.error("Error updating roster functions: %s", err)
+            raise
+
+    async def _get_roster_entries(self) -> None:
+        """Request the list of roster entries from the EX-CommandStation."""
+        if not self.connected:
+            raise EXCSConnectionError
+
+        LOGGER.debug("Requesting list of roster entries from EX-CommandStation")
+
+        # Clear existing roster entries
+        self.roster_entries.clear()
+
+        # Get list of roster entry IDs
+        roster_ids = await self._get_roster_ids()
+
+        if not roster_ids:
+            LOGGER.debug("No roster entries found")
+            return
+
+        LOGGER.debug("Found roster entry IDs: %s", ",".join(roster_ids))
+
+        # Get details for each roster entry ID
+        for raw_roster_id in roster_ids:
+            roster_id = raw_roster_id.strip()
+            if not roster_id:
+                LOGGER.warning("Empty roster ID found, skipping")
+                continue
+
+            # Get details for the roster entry
+            entry = await self._get_roster_entry_details(roster_id)
+            self.roster_entries.append(entry)
+            # Request initial throttle update to get current functions states
+            await self._update_roster_functions(entry)
+            # Print representation of the roster entry
+            LOGGER.debug("Roster entry detail: %s", entry)
 
     async def _get_excs_system_info(self) -> None:
         """Request system information from the EX-CommandStation."""

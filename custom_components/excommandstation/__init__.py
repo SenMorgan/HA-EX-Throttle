@@ -55,9 +55,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Register services
-    hass.services.async_register(
-        DOMAIN, "send_function", client.handle_set_loco_function
-    )
     hass.services.async_register(DOMAIN, "write_cv", client.handle_write_cv)
 
     return True
