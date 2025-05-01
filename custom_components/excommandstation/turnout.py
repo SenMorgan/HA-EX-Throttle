@@ -68,19 +68,16 @@ class TurnoutState(Enum):
 class EXCSTurnout:
     """Representation of a turnout in the EX-CommandStation."""
 
-    id: int = 0
-    state: TurnoutState = TurnoutState.CLOSED
-    description: str = ""
-    recv_prefix: str = ""  # Prefix to find out the turnout state in incoming messages
-
     def __init__(self, turnout_id: int, state: str, description: str) -> None:
         """Initialize the turnout."""
         self.id = turnout_id
         self.description = description or f"Turnout {turnout_id}"
-        self.recv_prefix = EXCSTurnoutConsts.RESP_STATE_PREFIX_FMT.format(id=self.id)
 
         # Normalize state to enum
         self.state = TurnoutState.from_char(state)
+
+        # Prefix to find out the turnout state in incoming messages
+        self.recv_prefix = EXCSTurnoutConsts.RESP_STATE_PREFIX_FMT.format(id=self.id)
 
     def __repr__(self) -> str:
         """Return a string representation of the turnout."""
