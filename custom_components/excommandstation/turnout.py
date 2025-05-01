@@ -15,6 +15,7 @@ class EXCSTurnoutConsts:
     # Commands
     CMD_LIST_TURNOUTS: Final[str] = "JT"
     CMD_GET_TURNOUT_DETAILS_FMT: Final[str] = "JT {id}"
+    CMD_TOGGLE_TURNOUT_FMT: Final[str] = "T {id} {state}"
 
     # Regular expressions and corresponding prefixes for parsing responses
     RESP_STATE_PREFIX: Final[str] = "H"
@@ -88,7 +89,9 @@ class EXCSTurnout:
     @classmethod
     def set_turnout_cmd(cls, turnout_id: int, state: TurnoutState) -> str:
         """Construct a command to set the turnout state."""
-        return f"T {turnout_id} {state.value}"
+        return EXCSTurnoutConsts.CMD_TOGGLE_TURNOUT_FMT.format(
+            id=turnout_id, state=state.value
+        )
 
     @classmethod
     def parse_turnout_state(cls, message: str) -> tuple[int, TurnoutState]:
