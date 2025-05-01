@@ -14,6 +14,7 @@ class EXCSTurnoutConsts:
 
     # Commands
     CMD_LIST_TURNOUTS: Final[str] = "JT"
+    CMD_GET_TURNOUT_DETAILS_FMT: Final[str] = "JT {id}"
 
     # Regular expressions and corresponding prefixes for parsing responses
     RESP_STATE_PREFIX: Final[str] = "H"

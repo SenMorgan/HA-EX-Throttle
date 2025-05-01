@@ -291,7 +291,7 @@ class EXCommandStationClient:
         """Get details for a specific turnout ID."""
         try:
             response = await self.send_command_with_response(
-                f"{EXCSTurnoutConsts.CMD_LIST_TURNOUTS} {turnout_id}>",
+                EXCSTurnoutConsts.CMD_GET_TURNOUT_DETAILS_FMT.format(id=turnout_id),
                 EXCSTurnoutConsts.RESP_PREFIX,
             )
             return EXCSTurnout.from_detail_response(response)
