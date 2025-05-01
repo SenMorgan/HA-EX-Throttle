@@ -18,7 +18,7 @@ class EXCSTurnoutConsts:
     CMD_TOGGLE_TURNOUT_FMT: Final[str] = "T {id} {state}"
 
     # Regular expressions and corresponding prefixes for parsing responses
-    RESP_STATE_PREFIX: Final[str] = "H"
+    RESP_STATE_PREFIX_FMT: Final[str] = "H {id}"
     RESP_STATE_REGEX: Final[re.Pattern] = re.compile(r"H\s+(\d+)\s+(\d)")
 
     RESP_PREFIX: Final[str] = "jT"
@@ -69,11 +69,13 @@ class EXCSTurnout:
     id: int = 0
     state: TurnoutState = TurnoutState.CLOSED
     description: str = ""
+    recv_prefix: str = ""  # Prefix to find out the turnout state in incoming messages
 
     def __init__(self, turnout_id: int, state: str, description: str) -> None:
         """Initialize the turnout."""
         self.id = turnout_id
         self.description = description or f"Turnout {turnout_id}"
+        self.recv_prefix = EXCSTurnoutConsts.RESP_STATE_PREFIX_FMT.format(id=self.id)
 
         # Normalize state to enum
         self.state = TurnoutState.from_char(state)
@@ -98,10 +100,7 @@ class EXCSTurnout:
         """Parse the turnout state from a message."""
         match = EXCSTurnoutConsts.RESP_STATE_REGEX.match(message)
         if not match:
-            msg = (
-                f"Invalid turnout state message: {message}. "
-                f"Expected format: '{EXCSTurnoutConsts.RESP_STATE_PREFIX}<id> <state>'"
-            )
+            msg = f"Invalid turnout state message: {message}"
             raise EXCSInvalidResponseError(msg)
         turnout_id = int(match.group(1))
 

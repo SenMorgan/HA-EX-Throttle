@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 
 from .entity import EXCSEntity
-from .turnout import EXCSTurnout, EXCSTurnoutConsts, TurnoutState
+from .turnout import EXCSTurnout, TurnoutState
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -61,9 +61,9 @@ class EXCSTurnoutSwitch(EXCSEntity, SwitchEntity):
 
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
-        if message.startswith(EXCSTurnoutConsts.RESP_STATE_PREFIX):
+        if message.startswith(self._turnout.recv_prefix):
             turnout_id, state = EXCSTurnout.parse_turnout_state(message)
-            if turnout_id == self._turnout.id:
+            if turnout_id == self._turnout.id:  # Double-check the turnout ID
                 LOGGER.debug("Turnout %d %s", turnout_id, state.name)
                 # Update the state of the switch
                 self._attr_is_on = state == TurnoutState.THROWN
