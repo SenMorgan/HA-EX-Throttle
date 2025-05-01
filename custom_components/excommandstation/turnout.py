@@ -88,7 +88,7 @@ class EXCSTurnout:
         )
 
     @classmethod
-    def set_turnout_cmd(cls, turnout_id: int, state: TurnoutState) -> str:
+    def toggle_turnout_cmd(cls, turnout_id: int, state: TurnoutState) -> str:
         """Construct a command to set the turnout state."""
         return EXCSTurnoutConsts.CMD_TOGGLE_TURNOUT_FMT.format(
             id=turnout_id, state=state.value

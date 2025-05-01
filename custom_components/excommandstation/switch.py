@@ -72,13 +72,13 @@ class EXCSTurnoutSwitch(EXCSEntity, SwitchEntity):
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the switch (set turnout to THROWN)."""
         await self._client.send_command(
-            EXCSTurnout.set_turnout_cmd(self._turnout.id, TurnoutState.THROWN)
+            EXCSTurnout.toggle_turnout_cmd(self._turnout.id, TurnoutState.THROWN)
         )
 
     async def async_turn_off(self, **_: Any) -> None:
         """Turn off the switch (set turnout to CLOSED)."""
         await self._client.send_command(
-            EXCSTurnout.set_turnout_cmd(self._turnout.id, TurnoutState.CLOSED)
+            EXCSTurnout.toggle_turnout_cmd(self._turnout.id, TurnoutState.CLOSED)
         )
 
 
