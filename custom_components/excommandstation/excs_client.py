@@ -276,7 +276,7 @@ class EXCommandStationClient:
         try:
             response = await self.send_command_with_response(
                 EXCSTurnoutConsts.CMD_LIST_TURNOUTS,
-                EXCSTurnoutConsts.RESP_PREFIX,
+                EXCSTurnoutConsts.RESP_LIST_PREFIX,
             )
             return EXCSTurnout.parse_turnout_ids(response)
         except TimeoutError:
@@ -292,7 +292,7 @@ class EXCommandStationClient:
         try:
             response = await self.send_command_with_response(
                 EXCSTurnoutConsts.CMD_GET_TURNOUT_DETAILS_FMT.format(id=turnout_id),
-                EXCSTurnoutConsts.RESP_PREFIX,
+                EXCSTurnoutConsts.RESP_DETAILS_PREFIX_FMT.format(id=turnout_id),
             )
             return EXCSTurnout.from_detail_response(response)
         except TimeoutError:

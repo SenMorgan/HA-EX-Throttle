@@ -19,10 +19,12 @@ class EXCSTurnoutConsts:
 
     # Regular expressions and corresponding prefixes for parsing responses
     RESP_STATE_PREFIX_FMT: Final[str] = "H {id}"
-    RESP_STATE_REGEX: Final[re.Pattern] = re.compile(r"H\s+(\d+)\s+(\d)")
+    RESP_STATE_REGEX: Final[re.Pattern] = re.compile(r"H\s+(?P<id>\d+)\s+(?P<state>\d)")
 
-    RESP_PREFIX: Final[str] = "jT"
+    RESP_LIST_PREFIX: Final[str] = "jT"
     RESP_LIST_REGEX: Final[re.Pattern] = re.compile(r"jT\s+(?P<ids>(?:\d+(?:\s+\d+)*))")
+
+    RESP_DETAILS_PREFIX_FMT: Final[str] = "jT {id}"
     RESP_DETAILS_REGEX: Final[re.Pattern] = re.compile(
         r'jT\s+(?P<id>\d+)\s+(?P<state>[CTX])(?:\s+(?P<desc>"[^"]*"))?'
     )
@@ -102,17 +104,17 @@ class EXCSTurnout:
         if not match:
             msg = f"Invalid turnout state message: {message}"
             raise EXCSInvalidResponseError(msg)
-        turnout_id = int(match.group(1))
+        turnout_id = int(match.group("id"))
 
         # Here the state is expected to be a digit
-        state = TurnoutState.from_digit(match.group(2))
+        state = TurnoutState.from_digit(match.group("state"))
         return turnout_id, state
 
     @classmethod
     def parse_turnout_ids(cls, response: str) -> list[str]:
         """Parse turnout IDs from a list turnouts response."""
         # Check for empty turnout list
-        if not response.removeprefix(EXCSTurnoutConsts.RESP_PREFIX):
+        if not response.removeprefix(EXCSTurnoutConsts.RESP_LIST_PREFIX):
             return []
 
         # Check for valid turnout list response
