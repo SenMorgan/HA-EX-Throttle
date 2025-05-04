@@ -207,7 +207,10 @@ class EXCommandStationClient:
         if connected != self.connected:
             self.connected = connected
             for callback in self._connection_callbacks:
-                callback(connected=connected)
+                try:
+                    callback(connected=connected)
+                except EXCSError:
+                    LOGGER.exception("Error notifying connection callback: %s")
 
     def register_push_callback(self, callback: Callable[[str], None]) -> None:
         """Register a callback to be called when a push message is received."""
