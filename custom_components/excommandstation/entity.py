@@ -19,14 +19,11 @@ if TYPE_CHECKING:
 class EXCSEntity(Entity):
     """Base class for EX-CommandStation entities."""
 
-    _client: EXCommandStationClient
-    _attr_has_entity_name = True
-    _attr_should_poll = False
-    _attr_device_info: DeviceInfo | None = None
-
     def __init__(self, client: EXCommandStationClient) -> None:
         """Initialize the entity."""
         self._client = client
+        self._attr_has_entity_name = True
+        self._attr_should_poll = False
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, client.host)},
             name="EX-CommandStation",
@@ -70,6 +67,9 @@ class EXCSRosterEntity(CoordinatorEntity[LocoUpdateCoordinator]):
         """Initialize the roster entity."""
         super().__init__(coordinator)
         self._loco = roster_entry
+        self._client = client
+        self._attr_has_entity_name = True
+        self._attr_should_poll = False
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{client.host}_loco_{roster_entry.id}")},
             name=roster_entry.description,

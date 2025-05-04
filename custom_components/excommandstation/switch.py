@@ -146,7 +146,6 @@ class LocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
     ) -> None:
         """Initialize the switch."""
         super().__init__(client, coordinator, loco)
-        self._client = client
         self._function_id = function.id
 
         # Set entity properties
