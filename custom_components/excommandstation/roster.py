@@ -35,7 +35,7 @@ class RosterConsts:
 
     RESP_THROTTLE_PREFIX_FMT: Final[str] = "l {cab_id}"
     RESP_THROTTLE_REGEX: Final[re.Pattern] = re.compile(
-        r"l\s+(?P<cab>\d+)\s+(?P<reg>\d+)\s+(?P<speed_byte>\d+)\s+(?P<function_map>\d+)"
+        r"l\s+(?P<cab>\d+)\s+(?:[+-]?\d+)\s+(?P<speed_byte>\d+)\s+(?P<function_map>\d+)"
     )
 
 
