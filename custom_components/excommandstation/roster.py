@@ -4,16 +4,9 @@ from __future__ import annotations
 
 import re
 from enum import Enum
-from typing import Final, TypedDict
+from typing import Final
 
 from .excs_exceptions import EXCSInvalidResponseError, EXCSValueError
-
-
-class FunctionInfo(TypedDict):
-    """Type for function information."""
-
-    id: int
-    label: str
 
 
 class EXCSRosterConsts:
@@ -53,21 +46,23 @@ class RosterDirection(Enum):
     FORWARD = 1
 
 
+class EXCSLocoFunctionCmd(Enum):
+    """Enum representing loco function commands."""
+
+    ON = 1
+    OFF = 0
+
+
 class EXCSLocoFunction:
     """Representation of a locomotive function."""
 
+    # Prefix for momentary functions
     MOMENTARY_FUNCTION_PREFIX: Final[str] = "*"
 
-    def __init__(
-        self,
-        function_id: int,
-        label: str,
-        *,
-        state: bool = False,
-    ) -> None:
+    def __init__(self, function_id: int, label: str) -> None:
         """Initialize the function."""
         self.id = function_id
-        self.state = state
+        self.state = False
 
         # Check if the function is momentary and format the label accordingly
         self.is_momentary = label.startswith(self.MOMENTARY_FUNCTION_PREFIX)
@@ -104,6 +99,12 @@ class EXCSRosterEntry:
             f"speed={self.speed} "
             f"direction={self.direction.name} "
             f"num_functions={len(self.functions)}>"
+        )
+
+    def toggle_function_cmd(self, function_id: int, state: EXCSLocoFunctionCmd) -> str:
+        """Construct a command to set the function state."""
+        return EXCSRosterConsts.CMD_TOGGLE_LOCO_FUNCTION_FMT.format(
+            cab_id=self.id, function_id=function_id, state=state.value
         )
 
     def _parse_functions(self, functions_str: str) -> None:
@@ -193,12 +194,3 @@ class EXCSRosterEntry:
 
         msg = f"Invalid roster details response: {response}"
         raise EXCSInvalidResponseError(msg)
-
-    @classmethod
-    def toggle_function_cmd(cls, cab_id: int, function_id: int, *, state: bool) -> str:
-        """Construct a command to set the function state."""
-        return EXCSRosterConsts.CMD_TOGGLE_LOCO_FUNCTION_FMT.format(
-            cab_id=cab_id,
-            function_id=function_id,
-            state=int(state),
-        )

@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING
 
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .coordinator import LocoUpdateCoordinator
 
 if TYPE_CHECKING:
     from .excs_client import EXCommandStationClient
@@ -56,15 +58,18 @@ class EXCSEntity(Entity):
         self._client.unregister_connection_callback(self._handle_connection_state)
 
 
-class EXCSRosterEntity(EXCSEntity):
+class EXCSRosterEntity(CoordinatorEntity[LocoUpdateCoordinator]):
     """Base class for EX-CommandStation roster entities."""
 
     def __init__(
-        self, client: EXCommandStationClient, roster_entry: EXCSRosterEntry
+        self,
+        client: EXCommandStationClient,
+        coordinator: LocoUpdateCoordinator,
+        roster_entry: EXCSRosterEntry,
     ) -> None:
         """Initialize the roster entity."""
-        super().__init__(client)
-
+        super().__init__(coordinator)
+        self._loco = roster_entry
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{client.host}_loco_{roster_entry.id}")},
             name=roster_entry.description,

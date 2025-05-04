@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
+from homeassistant.core import callback
 
 from .const import DOMAIN, LOGGER
 from .entity import EXCSEntity, EXCSRosterEntity
-from .excs_exceptions import EXCSError
-from .roster import EXCSLocoFunction, EXCSRosterEntry
+from .roster import EXCSLocoFunction, EXCSLocoFunctionCmd, EXCSRosterEntry
 from .turnout import EXCSTurnout, TurnoutState
 
 if TYPE_CHECKING:
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+    from .coordinator import LocoUpdateCoordinator
     from .excs_client import EXCommandStationClient
 
 
@@ -32,7 +33,9 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the EX-CommandStation switch platform."""
-    client: EXCommandStationClient = hass.data[DOMAIN][entry.entry_id]
+    data = hass.data[DOMAIN][entry.entry_id]
+    client = data["client"]
+    coordinators = data["coordinators"]
 
     # Add tracks power switch
     async_add_entities([EXCSTracksPowerSwitch(client)])
@@ -45,11 +48,16 @@ async def async_setup_entry(
         async_add_entities(turnout_switches)
 
     # Add locomotive function switches
-    function_switches = [
-        EXCSLocoFunctionSwitch(client, loco, function)
-        for loco in client.roster_entries
-        for function in loco.functions.values()
-    ]
+    function_switches = []
+    for loco in client.roster_entries:
+        coordinator = coordinators[loco.id]
+        function_switches.extend(
+            [
+                EXCSLocoFunctionSwitch(client, coordinator, loco, function)
+                for function in loco.functions.values()
+            ]
+        )
+
     if function_switches:
         async_add_entities(function_switches)
 
@@ -132,55 +140,43 @@ class EXCSLocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
     def __init__(
         self,
         client: EXCommandStationClient,
+        coordinator: LocoUpdateCoordinator,
         loco: EXCSRosterEntry,
         function: EXCSLocoFunction,
     ) -> None:
         """Initialize the switch."""
-        super().__init__(client, loco)
-        self._loco = loco
-        self._function = function
+        super().__init__(client, coordinator, loco)
+        self._client = client
+        self._function_id = function.id
 
         # Set entity properties
         self._attr_name = function.label
+        self._attr_unique_id = f"{client.host}_loco_{loco.id}_function_{function.id}"
+        self._attr_is_on = function.state
         self.entity_description = SwitchEntityDescription(
             key=f"function_{loco.id}_{function.id}",
             icon="mdi:train",
         )
-        self._attr_unique_id = f"{client.host}_loco_{loco.id}_function_{function.id}"
-        self._attr_is_on = function.state
 
-    def _handle_push(self, message: str) -> None:
-        """Handle incoming throttle messages from the EX-CommandStation."""
-        if message.startswith(self._loco.recv_prefix):
-            try:
-                # Update all states (the message includes information for all functions)
-                self._loco.process_throttle_response(message)
-            except EXCSError as err:
-                LOGGER.error("Error parsing throttle response: %s", err)
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        function = self.coordinator.data.functions.get(self._function_id)
+        new_state = function.state if function else False
 
-            LOGGER.debug(
-                "Locomotive %d Function %d state: %s",
-                self._loco.id,
-                self._function.id,
-                self._function.state,
-            )
-
-            # Update the state of the switch
-            self._attr_is_on = self._function.state
+        # Update the switch state if it has changed
+        if new_state != self._attr_is_on:
+            self._attr_is_on = new_state
             self.async_write_ha_state()
 
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the function."""
         await self._client.send_command(
-            EXCSRosterEntry.toggle_function_cmd(
-                self._loco.id, self._function.id, state=True
-            )
+            self._loco.toggle_function_cmd(self._function_id, EXCSLocoFunctionCmd.ON)
         )
 
     async def async_turn_off(self, **_: Any) -> None:
         """Turn off the function."""
         await self._client.send_command(
-            EXCSRosterEntry.toggle_function_cmd(
-                self._loco.id, self._function.id, state=False
-            )
+            self._loco.toggle_function_cmd(self._function_id, EXCSLocoFunctionCmd.OFF)
         )

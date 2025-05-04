@@ -13,6 +13,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 
 from .const import DOMAIN
+from .coordinator import LocoUpdateCoordinator
 from .excs_client import (
     EXCommandStationClient,
     EXCSConnectionError,
@@ -49,7 +50,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         msg = f"Unexpected error: {err}"
         raise ConfigEntryError(msg) from err
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = client
+    # Create coordinators for each locomotive
+    coordinators = {}
+    for loco in client.roster_entries:
+        coordinator = LocoUpdateCoordinator(hass, client, loco)
+        coordinators[loco.id] = coordinator
+
+    # Store client and coordinators in hass data
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "client": client,
+        "coordinators": coordinators,
+    }
 
     # Load platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
