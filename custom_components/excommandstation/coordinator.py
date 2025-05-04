@@ -8,7 +8,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN, LOGGER
 from .excs_exceptions import EXCSError
-from .roster import EXCSRosterEntry
+from .roster import RosterEntry
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -16,11 +16,11 @@ if TYPE_CHECKING:
     from .excs_client import EXCommandStationClient
 
 
-class LocoUpdateCoordinator(DataUpdateCoordinator[EXCSRosterEntry]):
+class LocoUpdateCoordinator(DataUpdateCoordinator[RosterEntry]):
     """Class to manage throttle updates for a locomotive."""
 
     def __init__(
-        self, hass: HomeAssistant, client: EXCommandStationClient, loco: EXCSRosterEntry
+        self, hass: HomeAssistant, client: EXCommandStationClient, loco: RosterEntry
     ) -> None:
         """Initialize the locomotive update coordinator."""
         super().__init__(

@@ -13,7 +13,7 @@ from .coordinator import LocoUpdateCoordinator
 
 if TYPE_CHECKING:
     from .excs_client import EXCommandStationClient
-    from .roster import EXCSRosterEntry
+    from .roster import RosterEntry
 
 
 class EXCSEntity(Entity):
@@ -65,7 +65,7 @@ class EXCSRosterEntity(CoordinatorEntity[LocoUpdateCoordinator]):
         self,
         client: EXCommandStationClient,
         coordinator: LocoUpdateCoordinator,
-        roster_entry: EXCSRosterEntry,
+        roster_entry: RosterEntry,
     ) -> None:
         """Initialize the roster entity."""
         super().__init__(coordinator)

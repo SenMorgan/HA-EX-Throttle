@@ -9,7 +9,7 @@ from homeassistant.core import callback
 
 from .const import DOMAIN, LOGGER
 from .entity import EXCSEntity, EXCSRosterEntity
-from .roster import EXCSLocoFunction, EXCSLocoFunctionCmd, EXCSRosterEntry
+from .roster import LocoFunction, LocoFunctionCmd, RosterEntry
 from .turnout import EXCSTurnout, TurnoutState
 
 if TYPE_CHECKING:
@@ -38,12 +38,12 @@ async def async_setup_entry(
     coordinators = data["coordinators"]
 
     # Add tracks power switch
-    async_add_entities([EXCSTracksPowerSwitch(client)])
+    async_add_entities([TracksPowerSwitch(client)])
 
     # Add turnout switches
     if client.turnouts:
         turnout_switches = [
-            EXCSTurnoutSwitch(client, turnout) for turnout in client.turnouts
+            TurnoutSwitch(client, turnout) for turnout in client.turnouts
         ]
         async_add_entities(turnout_switches)
 
@@ -53,7 +53,7 @@ async def async_setup_entry(
         coordinator = coordinators[loco.id]
         function_switches.extend(
             [
-                EXCSLocoFunctionSwitch(client, coordinator, loco, function)
+                LocoFunctionSwitch(client, coordinator, loco, function)
                 for function in loco.functions.values()
             ]
         )
@@ -62,7 +62,7 @@ async def async_setup_entry(
         async_add_entities(function_switches)
 
 
-class EXCSTurnoutSwitch(EXCSEntity, SwitchEntity):
+class TurnoutSwitch(EXCSEntity, SwitchEntity):
     """Representation of a turnout switch."""
 
     def __init__(self, client: EXCommandStationClient, turnout: EXCSTurnout) -> None:
@@ -101,7 +101,7 @@ class EXCSTurnoutSwitch(EXCSEntity, SwitchEntity):
         )
 
 
-class EXCSTracksPowerSwitch(EXCSEntity, SwitchEntity):
+class TracksPowerSwitch(EXCSEntity, SwitchEntity):
     """Representation of the EX-CommandStation tracks power switch."""
 
     def __init__(self, client: EXCommandStationClient) -> None:
@@ -134,15 +134,15 @@ class EXCSTracksPowerSwitch(EXCSEntity, SwitchEntity):
         await self._client.send_command(CMD_TRACKS_OFF)
 
 
-class EXCSLocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
+class LocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
     """Representation of a locomotive function switch."""
 
     def __init__(
         self,
         client: EXCommandStationClient,
         coordinator: LocoUpdateCoordinator,
-        loco: EXCSRosterEntry,
-        function: EXCSLocoFunction,
+        loco: RosterEntry,
+        function: LocoFunction,
     ) -> None:
         """Initialize the switch."""
         super().__init__(client, coordinator, loco)
@@ -172,11 +172,11 @@ class EXCSLocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the function."""
         await self._client.send_command(
-            self._loco.toggle_function_cmd(self._function_id, EXCSLocoFunctionCmd.ON)
+            self._loco.toggle_function_cmd(self._function_id, LocoFunctionCmd.ON)
         )
 
     async def async_turn_off(self, **_: Any) -> None:
         """Turn off the function."""
         await self._client.send_command(
-            self._loco.toggle_function_cmd(self._function_id, EXCSLocoFunctionCmd.OFF)
+            self._loco.toggle_function_cmd(self._function_id, LocoFunctionCmd.OFF)
         )

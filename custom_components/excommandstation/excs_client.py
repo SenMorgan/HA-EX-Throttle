@@ -20,7 +20,7 @@ from .excs_exceptions import (
     EXCSInvalidResponseError,
     EXCSVersionError,
 )
-from .roster import EXCSRosterConsts, EXCSRosterEntry
+from .roster import RosterConsts, RosterEntry
 from .turnout import EXCSTurnout, EXCSTurnoutConsts
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ class EXCommandStationClient:
         self.connected = False
         self.system_info = EXCSSystemInfo()
         self.turnouts: list[EXCSTurnout] = []
-        self.roster_entries: list[EXCSRosterEntry] = []
+        self.roster_entries: list[RosterEntry] = []
         self._reader = None
         self._writer = None
         self._push_callbacks = set()
@@ -325,10 +325,10 @@ class EXCommandStationClient:
         """Get the list of roster entry IDs from the EX-CommandStation."""
         try:
             response = await self.send_command_with_response(
-                EXCSRosterConsts.CMD_LIST_ROSTER_ENTRIES,
-                EXCSRosterConsts.RESP_LIST_PREFIX,
+                RosterConsts.CMD_LIST_ROSTER_ENTRIES,
+                RosterConsts.RESP_LIST_PREFIX,
             )
-            return EXCSRosterEntry.parse_roster_ids(response)
+            return RosterEntry.parse_roster_ids(response)
         except TimeoutError:
             msg = "Timeout waiting for roster list response"
             LOGGER.error(msg)
@@ -337,14 +337,14 @@ class EXCommandStationClient:
             LOGGER.error("Error getting roster list: %s", err)
             raise
 
-    async def _get_roster_entry_details(self, roster_id: str) -> EXCSRosterEntry:
+    async def _get_roster_entry_details(self, roster_id: str) -> RosterEntry:
         """Get details for a specific roster entry ID."""
         try:
             response = await self.send_command_with_response(
-                EXCSRosterConsts.CMD_GET_ROSTER_DETAILS_FMT.format(cab_id=roster_id),
-                EXCSRosterConsts.RESP_DETAILS_PREFIX_FMT.format(cab_id=roster_id),
+                RosterConsts.CMD_GET_ROSTER_DETAILS_FMT.format(cab_id=roster_id),
+                RosterConsts.RESP_DETAILS_PREFIX_FMT.format(cab_id=roster_id),
             )
-            return EXCSRosterEntry.from_detail_response(response)
+            return RosterEntry.from_detail_response(response)
         except TimeoutError:
             msg = f"Timeout waiting for roster details for ID {roster_id}"
             LOGGER.error(msg)
@@ -353,7 +353,7 @@ class EXCommandStationClient:
             LOGGER.error("Error getting roster detail: %s", err)
             raise
 
-    async def _update_roster_functions(self, entry: EXCSRosterEntry) -> None:
+    async def _update_roster_functions(self, entry: RosterEntry) -> None:
         """Update the functions of a roster entry."""
         if not self.connected:
             raise EXCSConnectionError
@@ -363,8 +363,8 @@ class EXCommandStationClient:
         try:
             # Send command to update functions
             response = await self.send_command_with_response(
-                EXCSRosterConsts.CMD_GET_LOCO_STATE_FMT.format(cab_id=entry.id),
-                EXCSRosterConsts.RESP_THROTTLE_PREFIX_FMT.format(cab_id=entry.id),
+                RosterConsts.CMD_GET_LOCO_STATE_FMT.format(cab_id=entry.id),
+                RosterConsts.RESP_THROTTLE_PREFIX_FMT.format(cab_id=entry.id),
             )
 
             # Parse the response and update the entry

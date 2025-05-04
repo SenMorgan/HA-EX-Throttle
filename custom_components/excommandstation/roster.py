@@ -9,7 +9,7 @@ from typing import Final
 from .excs_exceptions import EXCSInvalidResponseError, EXCSValueError
 
 
-class EXCSRosterConsts:
+class RosterConsts:
     """Constants for EX-CommandStation roster."""
 
     # From RCN-212, see: https://dcc-ex.com/reference/software/command-summary-consolidated.html#f-cab-funct-state-turn-loco-decoder-functions-on-or-off
@@ -39,21 +39,21 @@ class EXCSRosterConsts:
     )
 
 
-class RosterDirection(Enum):
+class LocoDirection(Enum):
     """Enum representing loco direction."""
 
     REVERSE = 0
     FORWARD = 1
 
 
-class EXCSLocoFunctionCmd(Enum):
+class LocoFunctionCmd(Enum):
     """Enum representing loco function commands."""
 
     ON = 1
     OFF = 0
 
 
-class EXCSLocoFunction:
+class LocoFunction:
     """Representation of a locomotive function."""
 
     # Prefix for momentary functions
@@ -70,22 +70,20 @@ class EXCSLocoFunction:
         self.label = formatted_label or f"Function {self.id}"
 
 
-class EXCSRosterEntry:
+class RosterEntry:
     """Representation of a roster entry (locomotive) in the EX-CommandStation."""
 
     def __init__(self, loco_id: int, description: str, functions_str: str = "") -> None:
         """Initialize the roster entry."""
         self.id = loco_id
         self.description = description or f"Locomotive {loco_id}"
-        self.functions: dict[int, EXCSLocoFunction] = {}
+        self.functions: dict[int, LocoFunction] = {}
         self.speed = 0
-        self.direction = RosterDirection.FORWARD
+        self.direction = LocoDirection.FORWARD
         self.emergency_stop = False
 
         # Prefix to find out loco state in incoming messages
-        self.recv_prefix = EXCSRosterConsts.RESP_THROTTLE_PREFIX_FMT.format(
-            cab_id=self.id
-        )
+        self.recv_prefix = RosterConsts.RESP_THROTTLE_PREFIX_FMT.format(cab_id=self.id)
 
         # Parse functions from the functions string
         if functions_str:
@@ -101,9 +99,9 @@ class EXCSRosterEntry:
             f"num_functions={len(self.functions)}>"
         )
 
-    def toggle_function_cmd(self, function_id: int, state: EXCSLocoFunctionCmd) -> str:
+    def toggle_function_cmd(self, function_id: int, state: LocoFunctionCmd) -> str:
         """Construct a command to set the function state."""
-        return EXCSRosterConsts.CMD_TOGGLE_LOCO_FUNCTION_FMT.format(
+        return RosterConsts.CMD_TOGGLE_LOCO_FUNCTION_FMT.format(
             cab_id=self.id, function_id=function_id, state=state.value
         )
 
@@ -115,14 +113,14 @@ class EXCSRosterEntry:
         function_labels = functions_str.split("/")
 
         for function_id, label in enumerate(function_labels):
-            if function_id > EXCSRosterConsts.MAX_SUPPORTED_FUNCTION:
+            if function_id > RosterConsts.MAX_SUPPORTED_FUNCTION:
                 break  # No need to parse beyond the supported range
 
             if not label:
                 continue  # Skip empty labels (e.g., from double slashes)
 
             # Create the function object and add it to the functions dictionary
-            self.functions[function_id] = EXCSLocoFunction(function_id, label)
+            self.functions[function_id] = LocoFunction(function_id, label)
 
     def _parse_speed_byte(self, speed_byte: int) -> None:
         """
@@ -135,11 +133,11 @@ class EXCSRosterEntry:
         """
         self.emergency_stop = bool(speed_byte & 0x01)
         self.speed = speed_byte & 0x7E
-        self.direction = RosterDirection((speed_byte >> 7) & 1)
+        self.direction = LocoDirection((speed_byte >> 7) & 1)
 
     def process_throttle_response(self, message: str) -> None:
         """Update the roster entry from a throttle response."""
-        match = EXCSRosterConsts.RESP_THROTTLE_REGEX.match(message)
+        match = RosterConsts.RESP_THROTTLE_REGEX.match(message)
         if not match:
             msg = f"Invalid throttle response: {message}"
             raise EXCSInvalidResponseError(msg)
@@ -165,11 +163,11 @@ class EXCSRosterEntry:
     def parse_roster_ids(cls, response: str) -> list[str]:
         """Parse roster IDs from a list roster response."""
         # Check for empty roster list
-        if not response.removeprefix(EXCSRosterConsts.RESP_LIST_PREFIX):
+        if not response.removeprefix(RosterConsts.RESP_LIST_PREFIX):
             return []
 
         # Check for valid roster list response
-        if match := EXCSRosterConsts.RESP_LIST_REGEX.match(response):
+        if match := RosterConsts.RESP_LIST_REGEX.match(response):
             roster_ids = match.group("ids")
             if roster_ids:
                 return roster_ids.split()
@@ -179,9 +177,9 @@ class EXCSRosterEntry:
         raise EXCSInvalidResponseError(msg)
 
     @classmethod
-    def from_detail_response(cls, response: str) -> EXCSRosterEntry:
+    def from_detail_response(cls, response: str) -> RosterEntry:
         """Create a roster entry instance from a detail response."""
-        if match := EXCSRosterConsts.RESP_DETAILS_REGEX.match(response):
+        if match := RosterConsts.RESP_DETAILS_REGEX.match(response):
             try:
                 return cls(
                     loco_id=int(match.group("id")),
