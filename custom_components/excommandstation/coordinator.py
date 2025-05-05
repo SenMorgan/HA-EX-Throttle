@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.core import callback
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN, LOGGER
 from .excs_exceptions import EXCSError
@@ -35,7 +36,29 @@ class LocoUpdateCoordinator(DataUpdateCoordinator[RosterEntry]):
 
         # Register to receive push messages
         self._client.register_push_callback(self._handle_push)
+        self._client.register_connection_callback(self._handle_connection_state)
 
+    async def _request_update(self) -> None:
+        """Request an update of the locomotive state after reconnection."""
+        try:
+            await self._client.send_command(self._loco.get_status_cmd())
+        except EXCSError as err:
+            LOGGER.warning("Error requesting loco update after reconnection: %s", err)
+
+    @callback
+    def _handle_connection_state(self, connected: bool) -> None:  # noqa: FBT001
+        """Handle connection state changes."""
+        if not connected:
+            self.async_set_update_error(
+                UpdateFailed(
+                    f"Connection to EX-CommandStation lost for loco {self._loco.id}"
+                )
+            )
+        else:
+            # If reconnected, request a fresh update
+            self.hass.async_create_task(self._request_update())
+
+    @callback
     def _handle_push(self, message: str) -> None:
         """Process throttle messages for this locomotive."""
         if not message.startswith(self._loco.recv_prefix):

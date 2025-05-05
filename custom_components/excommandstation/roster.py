@@ -105,6 +105,10 @@ class RosterEntry:
             cab_id=self.id, function_id=function_id, state=state.value
         )
 
+    def get_status_cmd(self) -> str:
+        """Construct a command to get the status of the locomotive."""
+        return RosterConsts.CMD_GET_LOCO_STATE_FMT.format(cab_id=self.id)
+
     def _parse_functions(self, functions_str: str) -> None:
         """Parse functions from a functions string."""
         if not functions_str:

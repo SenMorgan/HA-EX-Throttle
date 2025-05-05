@@ -161,12 +161,8 @@ class LocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         function = self.coordinator.data.functions.get(self._function_id)
-        new_state = function.state if function else False
-
-        # Update the switch state if it has changed
-        if new_state != self._attr_is_on:
-            self._attr_is_on = new_state
-            self.async_write_ha_state()
+        self._attr_is_on = function.state if function else None
+        self.async_write_ha_state()
 
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the function."""
