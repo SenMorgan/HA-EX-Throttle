@@ -62,6 +62,39 @@ async def async_setup_entry(
         async_add_entities(function_switches)
 
 
+class TracksPowerSwitch(EXCSEntity, SwitchEntity):
+    """Representation of the EX-CommandStation tracks power switch."""
+
+    def __init__(self, client: EXCommandStationClient) -> None:
+        """Initialize the switch."""
+        super().__init__(client)
+        self._attr_name = "Tracks Power"
+        self.entity_description = SwitchEntityDescription(
+            key="tracks_power",
+            icon="mdi:power",
+        )
+        self._attr_unique_id = f"{client.host}_{self.entity_description.key}"
+
+    def _handle_push(self, message: str) -> None:
+        """Handle incoming messages from the EX-CommandStation."""
+        if message == RESP_TRACKS_ON:
+            LOGGER.debug("Tracks power ON")
+            self._attr_is_on = True
+            self.async_write_ha_state()
+        elif message == RESP_TRACKS_OFF:
+            LOGGER.debug("Tracks power OFF")
+            self._attr_is_on = False
+            self.async_write_ha_state()
+
+    async def async_turn_on(self, **_: Any) -> None:
+        """Turn on the switch."""
+        await self._client.send_command(CMD_TRACKS_ON)
+
+    async def async_turn_off(self, **_: Any) -> None:
+        """Turn off the switch."""
+        await self._client.send_command(CMD_TRACKS_OFF)
+
+
 class TurnoutSwitch(EXCSEntity, SwitchEntity):
     """Representation of a turnout switch."""
 
@@ -99,39 +132,6 @@ class TurnoutSwitch(EXCSEntity, SwitchEntity):
         await self._client.send_command(
             EXCSTurnout.toggle_turnout_cmd(self._turnout.id, TurnoutState.CLOSED)
         )
-
-
-class TracksPowerSwitch(EXCSEntity, SwitchEntity):
-    """Representation of the EX-CommandStation tracks power switch."""
-
-    def __init__(self, client: EXCommandStationClient) -> None:
-        """Initialize the switch."""
-        super().__init__(client)
-        self._attr_name = "Tracks Power"
-        self.entity_description = SwitchEntityDescription(
-            key="tracks_power",
-            icon="mdi:power",
-        )
-        self._attr_unique_id = f"{client.host}_{self.entity_description.key}"
-
-    def _handle_push(self, message: str) -> None:
-        """Handle incoming messages from the EX-CommandStation."""
-        if message == RESP_TRACKS_ON:
-            LOGGER.debug("Tracks power ON")
-            self._attr_is_on = True
-            self.async_write_ha_state()
-        elif message == RESP_TRACKS_OFF:
-            LOGGER.debug("Tracks power OFF")
-            self._attr_is_on = False
-            self.async_write_ha_state()
-
-    async def async_turn_on(self, **_: Any) -> None:
-        """Turn on the switch."""
-        await self._client.send_command(CMD_TRACKS_ON)
-
-    async def async_turn_off(self, **_: Any) -> None:
-        """Turn off the switch."""
-        await self._client.send_command(CMD_TRACKS_OFF)
 
 
 class LocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
