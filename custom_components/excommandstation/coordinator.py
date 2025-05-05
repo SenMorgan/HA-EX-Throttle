@@ -36,7 +36,8 @@ class LocoUpdateCoordinator(DataUpdateCoordinator[RosterEntry]):
 
         # Register to receive push messages
         self._client.register_push_callback(self._handle_push)
-        self._client.register_connection_callback(self._handle_connection_state)
+        self._client.register_on_connect_callback(self._on_connect)
+        self._client.register_on_disconnect_callback(self._on_disconnect)
 
     async def _request_update(self) -> None:
         """Request an update of the locomotive state after reconnection."""
@@ -45,18 +46,22 @@ class LocoUpdateCoordinator(DataUpdateCoordinator[RosterEntry]):
         except EXCSError as err:
             LOGGER.warning("Error requesting loco update after reconnection: %s", err)
 
+    async def async_shutdown(self) -> None:
+        """Unregister callbacks and clean up resources."""
+        await super().async_shutdown()
+        self._client.unregister_push_callback(self._handle_push)
+        self._client.unregister_on_connect_callback(self._on_connect)
+        self._client.unregister_on_disconnect_callback(self._on_disconnect)
+
     @callback
-    def _handle_connection_state(self, connected: bool) -> None:  # noqa: FBT001
-        """Handle connection state changes."""
-        if not connected:
-            self.async_set_update_error(
-                UpdateFailed(
-                    f"Connection to EX-CommandStation lost for loco {self._loco.id}"
-                )
-            )
-        else:
-            # If reconnected, request a fresh update
-            self.hass.async_create_task(self._request_update())
+    def _on_connect(self) -> None:
+        """Handle connection to the EX-CommandStation."""
+        self.hass.async_create_task(self._request_update())
+
+    @callback
+    def _on_disconnect(self, exc: Exception) -> None:
+        """Handle disconnection from the EX-CommandStation."""
+        self.async_set_update_error(UpdateFailed(exc))
 
     @callback
     def _handle_push(self, message: str) -> None:

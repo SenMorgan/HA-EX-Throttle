@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, LOGGER
 from .coordinator import LocoUpdateCoordinator
 
 if TYPE_CHECKING:
@@ -39,20 +40,30 @@ class EXCSEntity(Entity):
         # This method should be overridden in subclasses to handle specific messages
         raise NotImplementedError
 
-    def _handle_connection_state(self, connected: bool) -> None:  # noqa: FBT001
-        """Handle connection state changes."""
-        self._attr_available = connected
+    @callback
+    def _on_connect(self) -> None:
+        """Handle connection to the EX-CommandStation."""
+        self._attr_available = True
+        self.async_write_ha_state()
+
+    @callback
+    def _on_disconnect(self, exc: Exception) -> None:
+        """Handle disconnection from the EX-CommandStation."""
+        LOGGER.debug("Entity became unavailable due to: %s", exc)
+        self._attr_available = False
         self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Register callbacks."""
         self._client.register_push_callback(self._handle_push)
-        self._client.register_connection_callback(self._handle_connection_state)
+        self._client.register_on_connect_callback(self._on_connect)
+        self._client.register_on_disconnect_callback(self._on_disconnect)
 
     async def async_will_remove_from_hass(self) -> None:
         """Unregister callbacks."""
         self._client.unregister_push_callback(self._handle_push)
-        self._client.unregister_connection_callback(self._handle_connection_state)
+        self._client.unregister_on_connect_callback(self._on_connect)
+        self._client.unregister_on_disconnect_callback(self._on_disconnect)
 
 
 class EXCSRosterEntity(CoordinatorEntity[LocoUpdateCoordinator]):

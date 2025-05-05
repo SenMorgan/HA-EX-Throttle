@@ -58,7 +58,8 @@ class EXCommandStationClient:
         self._reader = None
         self._writer = None
         self._push_callbacks = set()
-        self._connection_callbacks = set()
+        self._on_connect_callbacks = set()
+        self._on_disconnect_callbacks = set()
         self._listen_task = None
         self._listener_ready_event = asyncio.Event()
         self._response_futures: dict[str, asyncio.Future] = {}
@@ -190,27 +191,52 @@ class EXCommandStationClient:
                 )
                 await asyncio.sleep(backoff)
 
-    def register_connection_callback(self, callback: Callable[[bool], None]) -> None:
-        """Register a callback to be called when the connection state changes."""
-        self._connection_callbacks.add(callback)
+    def register_on_connect_callback(self, callback: Callable[[], None]) -> None:
+        """Register a callback to be called when the connection is established."""
+        self._on_connect_callbacks.add(callback)
 
         # Immediately notify of current state if connected
-        if callback and self.connected:
-            callback(self.connected)
+        if self.connected:
+            callback()
 
-    def unregister_connection_callback(self, callback: Callable[[bool], None]) -> None:
+    def unregister_on_connect_callback(self, callback: Callable[[], None]) -> None:
         """Unregister a connection state callback."""
-        self._connection_callbacks.discard(callback)
+        self._on_connect_callbacks.discard(callback)
 
-    def _notify_connection_state(self, *, connected: bool) -> None:
+    def register_on_disconnect_callback(
+        self, callback: Callable[[Exception], None]
+    ) -> None:
+        """Register a callback to be called when the connection is lost."""
+        self._on_disconnect_callbacks.add(callback)
+
+        # Immediately notify of current state if disconnected
+        if not self.connected:
+            callback(EXCSConnectionError("Disconnected during callback registration"))
+
+    def unregister_on_disconnect_callback(
+        self, callback: Callable[[Exception], None]
+    ) -> None:
+        """Unregister a disconnection state callback."""
+        self._on_disconnect_callbacks.discard(callback)
+
+    def _notify_connection_state(
+        self, *, connected: bool, exc: Exception | None = None
+    ) -> None:
         """Notify all registered callbacks of connection state change."""
         if connected != self.connected:
             self.connected = connected
-            for callback in self._connection_callbacks:
-                try:
-                    callback(connected=connected)
-                except EXCSError:
-                    LOGGER.exception("Error notifying connection callback: %s")
+            if connected:
+                for callback in self._on_connect_callbacks:
+                    try:
+                        callback()
+                    except EXCSError:
+                        LOGGER.exception("Error notifying on connect callback: %s")
+            else:
+                for callback in self._on_disconnect_callbacks:
+                    try:
+                        callback(exc)
+                    except EXCSError:
+                        LOGGER.exception("Error notifying on disconnect callback: %s")
 
     def register_push_callback(self, callback: Callable[[str], None]) -> None:
         """Register a callback to be called when a push message is received."""
@@ -356,30 +382,6 @@ class EXCommandStationClient:
             LOGGER.error("Error getting roster detail: %s", err)
             raise
 
-    async def _update_roster_functions(self, entry: RosterEntry) -> None:
-        """Update the functions of a roster entry."""
-        if not self.connected:
-            raise EXCSConnectionError
-
-        LOGGER.debug("Updating functions for roster entry: %s", entry)
-
-        try:
-            # Send command to update functions
-            response = await self.send_command_with_response(
-                RosterConsts.CMD_GET_LOCO_STATE_FMT.format(cab_id=entry.id),
-                RosterConsts.RESP_THROTTLE_PREFIX_FMT.format(cab_id=entry.id),
-            )
-
-            # Parse the response and update the entry
-            entry.process_throttle_response(response)
-        except TimeoutError:
-            msg = "Timeout waiting for roster function update response"
-            LOGGER.error(msg)
-            raise EXCSConnectionError(msg) from None
-        except EXCSError as err:
-            LOGGER.error("Error updating roster functions: %s", err)
-            raise
-
     async def _get_roster_entries(self) -> None:
         """Request the list of roster entries from the EX-CommandStation."""
         if not self.connected:
@@ -409,8 +411,7 @@ class EXCommandStationClient:
             # Get details for the roster entry
             entry = await self._get_roster_entry_details(roster_id)
             self.roster_entries.append(entry)
-            # Request initial throttle update to get current functions states
-            await self._update_roster_functions(entry)
+
             # Print representation of the roster entry
             LOGGER.debug("Roster entry detail: %s", entry)
 
