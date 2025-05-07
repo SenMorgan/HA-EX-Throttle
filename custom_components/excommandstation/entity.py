@@ -9,7 +9,13 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, LOGGER
+from .const import (
+    DOMAIN,
+    LOGGER,
+    SIGNAL_CONNECTED,
+    SIGNAL_DATA_PUSHED,
+    SIGNAL_DISCONNECTED,
+)
 from .coordinator import LocoUpdateCoordinator
 
 if TYPE_CHECKING:
@@ -35,6 +41,10 @@ class EXCSEntity(Entity):
         # Initialize availability based on current connection state
         self._attr_available = client.connected
 
+        # List to store signal unsubscribe callbacks
+        self._unsub_callbacks = []
+
+    @callback
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
         # This method should be overridden in subclasses to handle specific messages
@@ -55,15 +65,17 @@ class EXCSEntity(Entity):
 
     async def async_added_to_hass(self) -> None:
         """Register callbacks."""
-        self._client.register_push_callback(self._handle_push)
-        self._client.register_on_connect_callback(self._on_connect)
-        self._client.register_on_disconnect_callback(self._on_disconnect)
+        self._unsub_callbacks = [
+            self._client.connect_signal(SIGNAL_CONNECTED, self._on_connect),
+            self._client.connect_signal(SIGNAL_DISCONNECTED, self._on_disconnect),
+            self._client.connect_signal(SIGNAL_DATA_PUSHED, self._handle_push),
+        ]
 
     async def async_will_remove_from_hass(self) -> None:
         """Unregister callbacks."""
-        self._client.unregister_push_callback(self._handle_push)
-        self._client.unregister_on_connect_callback(self._on_connect)
-        self._client.unregister_on_disconnect_callback(self._on_disconnect)
+        for unsub in self._unsub_callbacks:
+            unsub()
+        self._unsub_callbacks.clear()
 
 
 class EXCSRosterEntity(CoordinatorEntity[LocoUpdateCoordinator]):

@@ -40,7 +40,7 @@ class EXCommandStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             port = user_input[CONF_PORT]
 
             try:
-                client = EXCommandStationClient(host=host, port=port)
+                client = EXCommandStationClient(self.hass, host, port)
                 await client.async_setup()
                 await client.disconnect()
             except EXCSConnectionError as e:

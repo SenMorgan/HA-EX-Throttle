@@ -75,6 +75,7 @@ class TracksPowerSwitch(EXCSEntity, SwitchEntity):
         )
         self._attr_unique_id = f"{client.host}_{self.entity_description.key}"
 
+    @callback
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
         if message == RESP_TRACKS_ON:
@@ -111,6 +112,7 @@ class TurnoutSwitch(EXCSEntity, SwitchEntity):
         # Assuming THROWN means the switch is on
         self._attr_is_on = turnout.state == TurnoutState.THROWN
 
+    @callback
     def _handle_push(self, message: str) -> None:
         """Handle incoming messages from the EX-CommandStation."""
         if message.startswith(self._turnout.recv_prefix):

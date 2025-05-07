@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING
 from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, LOGGER
+from .const import (
+    DOMAIN,
+    LOGGER,
+    SIGNAL_CONNECTED,
+    SIGNAL_DATA_PUSHED,
+    SIGNAL_DISCONNECTED,
+)
 from .excs_exceptions import EXCSError
 from .roster import RosterEntry
 
@@ -34,10 +40,12 @@ class LocoUpdateCoordinator(DataUpdateCoordinator[RosterEntry]):
         self._client = client
         self._loco = loco
 
-        # Register to receive push messages
-        self._client.register_push_callback(self._handle_push)
-        self._client.register_on_connect_callback(self._on_connect)
-        self._client.register_on_disconnect_callback(self._on_disconnect)
+        # Register callbacks for connection and store unsubscribe functions
+        self._unsub_callbacks = [
+            self._client.connect_signal(SIGNAL_CONNECTED, self._on_connect),
+            self._client.connect_signal(SIGNAL_DISCONNECTED, self._on_disconnect),
+            self._client.connect_signal(SIGNAL_DATA_PUSHED, self._handle_push),
+        ]
 
     async def _request_update(self) -> None:
         """Request an update of the locomotive state after reconnection."""
@@ -49,9 +57,11 @@ class LocoUpdateCoordinator(DataUpdateCoordinator[RosterEntry]):
     async def async_shutdown(self) -> None:
         """Unregister callbacks and clean up resources."""
         await super().async_shutdown()
-        self._client.unregister_push_callback(self._handle_push)
-        self._client.unregister_on_connect_callback(self._on_connect)
-        self._client.unregister_on_disconnect_callback(self._on_disconnect)
+
+        # Unsubscribe from all signals
+        for unsub in self._unsub_callbacks:
+            unsub()
+        self._unsub_callbacks.clear()
 
     @callback
     def _on_connect(self) -> None:

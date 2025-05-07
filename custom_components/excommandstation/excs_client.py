@@ -5,7 +5,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_connect,
+    async_dispatcher_send,
+)
 
 from .commands import (
     CMD_EXCS_SYS_INFO,
@@ -13,7 +18,16 @@ from .commands import (
     RESP_EXCS_SYS_INFO_REGEX,
     command_write_cv,
 )
-from .const import DEFAULT_TIMEOUT, LISTENER_TIMEOUT, LOGGER, MIN_SUPPORTED_VERSION
+from .const import (
+    DEFAULT_TIMEOUT,
+    DOMAIN,
+    LISTENER_TIMEOUT,
+    LOGGER,
+    MIN_SUPPORTED_VERSION,
+    SIGNAL_CONNECTED,
+    SIGNAL_DATA_PUSHED,
+    SIGNAL_DISCONNECTED,
+)
 from .excs_exceptions import (
     EXCSConnectionError,
     EXCSError,
@@ -26,7 +40,7 @@ from .turnout import EXCSTurnout, EXCSTurnoutConsts
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from homeassistant.core import ServiceCall
+    from homeassistant.core import HomeAssistant, ServiceCall
 
 
 @dataclass
@@ -47,7 +61,7 @@ class EXCSSystemInfo:
 class EXCommandStationClient:
     """Client for communicating with the EX-CommandStation."""
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, hass: HomeAssistant, host: str, port: int) -> None:
         """Initialize the EX-CommandStation client."""
         self.host = host
         self.port = port
@@ -55,11 +69,9 @@ class EXCommandStationClient:
         self.system_info = EXCSSystemInfo()
         self.turnouts: list[EXCSTurnout] = []
         self.roster_entries: list[RosterEntry] = []
-        self._reader = None
-        self._writer = None
-        self._push_callbacks = set()
-        self._on_connect_callbacks = set()
-        self._on_disconnect_callbacks = set()
+        self._hass = hass
+        self._reader: asyncio.StreamReader | None = None
+        self._writer: asyncio.StreamWriter | None = None
         self._listen_task = None
         self._listener_ready_event = asyncio.Event()
         self._response_futures: dict[str, asyncio.Future] = {}
@@ -192,33 +204,17 @@ class EXCommandStationClient:
                 )
                 await asyncio.sleep(backoff)
 
-    def register_on_connect_callback(self, callback: Callable[[], None]) -> None:
-        """Register a callback to be called when the connection is established."""
-        self._on_connect_callbacks.add(callback)
+    def dispatch_signal(self, signal: str, *args: Any) -> None:
+        """Dispatch a signal to all registered callbacks."""
+        signal = f"{DOMAIN}_{self.host}_{signal}"
+        async_dispatcher_send(self._hass, signal, *args)
 
-        # Immediately notify of current state if connected
-        if self.connected:
-            callback()
-
-    def unregister_on_connect_callback(self, callback: Callable[[], None]) -> None:
-        """Unregister a connection state callback."""
-        self._on_connect_callbacks.discard(callback)
-
-    def register_on_disconnect_callback(
-        self, callback: Callable[[Exception], None]
-    ) -> None:
-        """Register a callback to be called when the connection is lost."""
-        self._on_disconnect_callbacks.add(callback)
-
-        # Immediately notify of current state if disconnected
-        if not self.connected:
-            callback(EXCSConnectionError("Disconnected during callback registration"))
-
-    def unregister_on_disconnect_callback(
-        self, callback: Callable[[Exception], None]
-    ) -> None:
-        """Unregister a disconnection state callback."""
-        self._on_disconnect_callbacks.discard(callback)
+    def connect_signal(
+        self, signal: str, callback: Callable[..., Any]
+    ) -> Callable[[], None]:
+        """Connect a callback to a signal."""
+        signal = f"{DOMAIN}_{self.host}_{signal}"
+        return async_dispatcher_connect(self._hass, signal, callback)
 
     def _notify_connection_state(
         self, *, connected: bool, exc: Exception | None = None
@@ -227,25 +223,9 @@ class EXCommandStationClient:
         if connected != self.connected:
             self.connected = connected
             if connected:
-                for callback in self._on_connect_callbacks:
-                    try:
-                        callback()
-                    except EXCSError:
-                        LOGGER.exception("Error notifying on connect callback: %s")
+                self.dispatch_signal(SIGNAL_CONNECTED)
             else:
-                for callback in self._on_disconnect_callbacks:
-                    try:
-                        callback(exc)
-                    except EXCSError:
-                        LOGGER.exception("Error notifying on disconnect callback: %s")
-
-    def register_push_callback(self, callback: Callable[[str], None]) -> None:
-        """Register a callback to be called when a push message is received."""
-        self._push_callbacks.add(callback)
-
-    def unregister_push_callback(self, callback: Callable[[str], None]) -> None:
-        """Unregister a push message callback."""
-        self._push_callbacks.discard(callback)
+                self.dispatch_signal(SIGNAL_DISCONNECTED, exc)
 
     async def send_command(self, command: str) -> None:
         """Send a command to the EX-CommandStation."""
@@ -531,7 +511,7 @@ class EXCommandStationClient:
             return
 
         # Message is a push update — notify subscribers
-        self._notify(message)
+        self.dispatch_signal(SIGNAL_DATA_PUSHED, message)
 
     def _handle_future_response(self, message: str) -> bool:
         """Handle a response if it matches a registered future."""
@@ -542,11 +522,3 @@ class EXCommandStationClient:
                 return True
 
         return False
-
-    def _notify(self, message: str) -> None:
-        """Notify all registered callbacks with the received message."""
-        for cb in self._push_callbacks:
-            try:
-                cb(message)
-            except EXCSError:
-                LOGGER.exception("Error notifying callback: %s")
