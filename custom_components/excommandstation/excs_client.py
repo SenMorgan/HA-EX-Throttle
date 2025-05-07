@@ -109,23 +109,23 @@ class EXCommandStationClient:
                 self._listener_ready_event.wait(), timeout=DEFAULT_TIMEOUT
             )
 
-        except TimeoutError:
+        except TimeoutError as err:
             msg = "Timeout while connecting to EX-CommandStation"
             LOGGER.error(msg)
-            self._notify_connection_state(connected=False)
+            self._notify_connection_state(connected=False, exc=err)
             raise EXCSConnectionError(msg) from None
         except OSError as err:
             msg = (
                 f"Failed to connect to EX-CommandStation at {self.host}:{self.port}: "
                 f"{err}"
             )
-            self._notify_connection_state(connected=False)
+            self._notify_connection_state(connected=False, exc=err)
             raise EXCSConnectionError(msg) from err
 
         if self._reader is None or self._writer is None:
             msg = "Reader or writer not initialized properly"
             LOGGER.error(msg)
-            self._notify_connection_state(connected=False)
+            self._notify_connection_state(connected=False, exc=EXCSConnectionError(msg))
             raise EXCSConnectionError(msg)
 
         LOGGER.debug("Successfully connected to EX-CommandStation")
@@ -140,33 +140,25 @@ class EXCommandStationClient:
 
         # Close writer
         if self._writer:
-            try:
+            with contextlib.suppress(OSError):
                 self._writer.close()
                 await self._writer.wait_closed()
-            except OSError as err:
-                LOGGER.debug("Error closing writer: %s", err)
 
         self._reader = None
         self._writer = None
         self._listen_task = None
 
         # Update state and notify entities
-        self._notify_connection_state(connected=False)
+        self._notify_connection_state(
+            connected=False, exc=EXCSConnectionError("Disconnected")
+        )
         LOGGER.debug("Disconnected from EX-CommandStation")
 
     async def _reconnect(self) -> None:
         """Attempt to reconnect to the EX-CommandStation with exponential backoff."""
-        # If we were previously connected, clean up
-        if self._writer:
-            with contextlib.suppress(OSError):
-                self._writer.close()
-                await self._writer.wait_closed()
+        await self.disconnect()
 
-        self._writer = None
-        self._reader = None
-        self._notify_connection_state(connected=False)
-
-        LOGGER.warning("Connection to EX-CommandStation lost, attempting to reconnect")
+        LOGGER.debug("Attempting to reconnect to EX-CommandStation...")
         retries = 0
         max_backoff = 30  # Maximum backoff interval in seconds
 
