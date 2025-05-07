@@ -7,6 +7,7 @@ https://github.com/SenMorgan/HA-CommandStation-EX
 
 from __future__ import annotations
 
+from asyncio import gather
 from typing import TYPE_CHECKING
 
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
@@ -53,11 +54,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         msg = f"Unexpected error: {err}"
         raise ConfigEntryError(msg) from err
 
-    # Create coordinators for each locomotive
-    coordinators = {}
-    for loco in client.roster_entries:
-        coordinator = LocoUpdateCoordinator(hass, client, loco)
-        coordinators[loco.id] = coordinator
+    # Create and initialize coordinators for each locomotive
+    coordinators = {
+        loco.id: LocoUpdateCoordinator(hass, client, loco)
+        for loco in client.roster_entries
+    }
+    await gather(
+        *(
+            coordinator.async_config_entry_first_refresh()
+            for coordinator in coordinators.values()
+        )
+    )
 
     # Store client and coordinators in hass data
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {

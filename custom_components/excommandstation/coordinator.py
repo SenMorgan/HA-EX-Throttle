@@ -40,15 +40,27 @@ class LocoUpdateCoordinator(DataUpdateCoordinator[RosterEntry]):
         self._client = client
         self._loco = loco
 
-        # Register callbacks for connection and store unsubscribe functions
-        self._unsub_callbacks = [
-            self._client.connect_signal(SIGNAL_CONNECTED, self._on_connect),
-            self._client.connect_signal(SIGNAL_DISCONNECTED, self._on_disconnect),
-            self._client.connect_signal(SIGNAL_DATA_PUSHED, self._handle_push),
-        ]
+        # List to store signal unsubscribe callbacks
+        self._unsub_callbacks = []
 
-    async def _request_update(self) -> None:
-        """Request an update of the locomotive state after reconnection."""
+    async def _async_setup(self) -> None:
+        """Register callbacks and call initial update."""
+        self._unsub_callbacks.extend(
+            [
+                self._client.connect_signal(SIGNAL_CONNECTED, self._on_connect),
+                self._client.connect_signal(SIGNAL_DISCONNECTED, self._on_disconnect),
+                self._client.connect_signal(SIGNAL_DATA_PUSHED, self._handle_push),
+            ]
+        )
+
+    async def _async_update_data(self) -> None:
+        """
+        Request an update of the locomotive state.
+
+        This method is used only for initial setup and in case of reconnections
+        to get the latest state of the locomotive.
+        Normally, updates are pushed from the EXCommandStation.
+        """
         try:
             await self._client.send_command(self._loco.get_status_cmd())
         except EXCSError as err:
@@ -66,7 +78,7 @@ class LocoUpdateCoordinator(DataUpdateCoordinator[RosterEntry]):
     @callback
     def _on_connect(self) -> None:
         """Handle connection to the EX-CommandStation."""
-        self.hass.async_create_task(self._request_update())
+        self.hass.async_create_task(self._async_update_data())
 
     @callback
     def _on_disconnect(self, exc: Exception) -> None:
