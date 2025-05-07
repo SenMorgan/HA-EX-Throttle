@@ -426,10 +426,10 @@ class EXCommandStationClient:
             response = await self.send_command_with_response(
                 CMD_EXCS_SYS_INFO, RESP_EXCS_SYS_INFO_PREFIX
             )
-        except TimeoutError:
+        except TimeoutError as err:
             msg = "Timeout waiting for system info response from EX-CommandStation"
             LOGGER.error(msg)
-            raise EXCSConnectionError(msg) from None
+            raise EXCSConnectionError(msg) from err
         except EXCSError as err:
             LOGGER.error("Error while getting system info: %s", err)
             raise
