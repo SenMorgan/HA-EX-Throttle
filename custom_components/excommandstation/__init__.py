@@ -43,10 +43,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await client.async_setup()
     except EXCSConnectionError as err:
+        await client.async_shutdown()
         raise ConfigEntryNotReady from err
     except EXCSVersionError as err:
+        await client.async_shutdown()
         raise ConfigEntryError from err
     except EXCSError as err:
+        await client.async_shutdown()
         msg = f"Unexpected error: {err}"
         raise ConfigEntryError(msg) from err
 
@@ -73,11 +76,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Handle removal of an entry."""
-    client = hass.data[DOMAIN][entry.entry_id]
-    await client.disconnect()
-    await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    hass.data[DOMAIN].pop(entry.entry_id)
-    return True
+    # Get data from hass.data
+    data = hass.data[DOMAIN].get(entry.entry_id)
+    if not data:
+        return True
+
+    client: EXCommandStationClient = data["client"]
+    coordinators: dict[int, LocoUpdateCoordinator] = data["coordinators"]
+
+    # Unregister services
+    hass.services.async_remove(DOMAIN, "write_cv")
+
+    # Unload platforms
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    # Shutdown coordinators
+    for coordinator in coordinators.values():
+        await coordinator.async_shutdown()
+
+    # Disconnect client
+    await client.async_shutdown()
+
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
+
+    return unload_ok
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

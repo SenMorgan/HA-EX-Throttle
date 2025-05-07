@@ -83,6 +83,14 @@ class EXCommandStationClient:
         # Fetch the list of roster entries
         await self._get_roster_entries()
 
+    async def async_shutdown(self) -> None:
+        """Shutdown the EX-CommandStation client."""
+        LOGGER.debug("Shutting down EX-CommandStation client")
+        try:
+            await self.disconnect()
+        except EXCSError:
+            LOGGER.exception("Error during shutdown of EX-CommandStation client")
+
     async def connect(self) -> None:
         """Connect to the EX-CommandStation."""
         LOGGER.debug("Connecting to EX-CommandStation at %s:%s", self.host, self.port)
@@ -132,6 +140,8 @@ class EXCommandStationClient:
 
     async def disconnect(self) -> None:
         """Disconnect from the EX-CommandStation."""
+        LOGGER.debug("Disconnecting from EX-CommandStation")
+
         # Cancel listener task
         if self._listen_task and not self._listen_task.done():
             self._listen_task.cancel()
@@ -152,7 +162,6 @@ class EXCommandStationClient:
         self._notify_connection_state(
             connected=False, exc=EXCSConnectionError("Disconnected")
         )
-        LOGGER.debug("Disconnected from EX-CommandStation")
 
     async def _reconnect(self) -> None:
         """Attempt to reconnect to the EX-CommandStation with exponential backoff."""
