@@ -236,7 +236,7 @@ class EXCommandStationClient:
             raise EXCSConnectionError(msg)
 
         # Send the command to the EX-CommandStation
-        self._writer.write((f"<{command}>\r\n").encode("ascii"))
+        self._writer.write((f"<{command}>\n").encode("ascii"))
         await self._writer.drain()
 
     async def send_command_with_response(
