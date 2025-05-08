@@ -288,6 +288,9 @@ class EXCommandStationClient:
         except EXCSError as err:
             LOGGER.error("Error getting turnout list: %s", err)
             raise
+        except Exception:
+            LOGGER.exception("Unexpected error while getting turnout list")
+            raise
 
     async def _get_turnout_details(self, turnout_id: str) -> EXCSTurnout:
         """Get details for a specific turnout ID."""
@@ -303,6 +306,11 @@ class EXCommandStationClient:
             raise EXCSConnectionError(msg) from None
         except EXCSError as err:
             LOGGER.error("Error getting turnout detail: %s", err)
+            raise
+        except Exception:
+            LOGGER.exception(
+                "Unexpected error while getting turnout details for ID %s", turnout_id
+            )
             raise
 
     async def _get_turnouts(self) -> None:
@@ -346,6 +354,9 @@ class EXCommandStationClient:
         except EXCSError as err:
             LOGGER.error("Error getting roster list: %s", err)
             raise
+        except Exception:
+            LOGGER.exception("Unexpected error while getting roster list")
+            raise
 
     async def _get_roster_entry_details(self, roster_id: str) -> RosterEntry:
         """Get details for a specific roster entry ID."""
@@ -361,6 +372,11 @@ class EXCommandStationClient:
             raise EXCSConnectionError(msg) from None
         except EXCSError as err:
             LOGGER.error("Error getting roster detail: %s", err)
+            raise
+        except Exception:
+            LOGGER.exception(
+                "Unexpected error while getting roster details for ID %s", roster_id
+            )
             raise
 
     async def _get_roster_entries(self) -> None:
@@ -412,6 +428,9 @@ class EXCommandStationClient:
             raise EXCSConnectionError(msg) from err
         except EXCSError as err:
             LOGGER.error("Error while getting system info: %s", err)
+            raise
+        except Exception:
+            LOGGER.exception("Unexpected error while getting system info")
             raise
 
         # Parse the response and extract system information
