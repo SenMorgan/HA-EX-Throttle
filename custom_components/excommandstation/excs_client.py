@@ -250,8 +250,10 @@ class EXCommandStationClient:
         await self.send_command(command)
 
         # Wait for the response or timeout and remove the future from the dictionary
-        response = await asyncio.wait_for(future, timeout=DEFAULT_TIMEOUT)
-        self._response_futures.pop(expected_prefix, None)
+        try:
+            response = await asyncio.wait_for(future, timeout=DEFAULT_TIMEOUT)
+        finally:
+            self._response_futures.pop(expected_prefix, None)
 
         # Check if the response starts with the expected prefix
         if not response.startswith(expected_prefix):
