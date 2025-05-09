@@ -15,12 +15,8 @@ from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 
 from .const import DOMAIN
 from .coordinator import LocoUpdateCoordinator
-from .excs_client import (
-    EXCommandStationClient,
-    EXCSConnectionError,
-    EXCSError,
-    EXCSVersionError,
-)
+from .excs_client import EXCommandStationClient
+from .excs_exceptions import EXCSConnectionError, EXCSError, EXCSVersionError
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry

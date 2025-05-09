@@ -9,12 +9,8 @@ from homeassistant.const import CONF_BASE, CONF_HOST, CONF_PORT, CONF_PROFILE_NA
 from slugify import slugify
 
 from .const import DEFAULT_PORT, DOMAIN, LOGGER
-from .excs_client import (
-    EXCommandStationClient,
-    EXCSConnectionError,
-    EXCSError,
-    EXCSVersionError,
-)
+from .excs_client import EXCommandStationClient
+from .excs_exceptions import EXCSConnectionError, EXCSError, EXCSVersionError
 
 USER_SCHEMA = vol.Schema(
     {
