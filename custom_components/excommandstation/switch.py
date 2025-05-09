@@ -27,6 +27,7 @@ from .commands import (
     RESP_TRACKS_OFF,
     RESP_TRACKS_ON,
 )
+from .excs_client import EXCSError
 
 
 async def async_setup_entry(
@@ -89,11 +90,18 @@ class TracksPowerSwitch(EXCSEntity, SwitchEntity):
 
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the switch."""
-        await self._client.send_command(CMD_TRACKS_ON)
+        try:
+            await self._client.send_command(CMD_TRACKS_ON)
+        except EXCSError:
+            LOGGER.exception("Failed to turn ON tracks power")
 
     async def async_turn_off(self, **_: Any) -> None:
         """Turn off the switch."""
-        await self._client.send_command(CMD_TRACKS_OFF)
+        try:
+            await self._client.send_command(CMD_TRACKS_OFF)
+        except EXCSError:
+            # Handle the error if needed
+            LOGGER.exception("Failed to turn OFF tracks power")
 
 
 class TurnoutSwitch(EXCSEntity, SwitchEntity):
@@ -125,15 +133,23 @@ class TurnoutSwitch(EXCSEntity, SwitchEntity):
 
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the switch (set turnout to THROWN)."""
-        await self._client.send_command(
-            EXCSTurnout.toggle_turnout_cmd(self._turnout.id, TurnoutState.THROWN)
-        )
+        try:
+            await self._client.send_command(
+                EXCSTurnout.toggle_turnout_cmd(self._turnout.id, TurnoutState.THROWN)
+            )
+        except EXCSError:
+            # Handle the error if needed
+            LOGGER.exception("Failed to turn THROW turnout %d", self._turnout.id)
 
     async def async_turn_off(self, **_: Any) -> None:
         """Turn off the switch (set turnout to CLOSED)."""
-        await self._client.send_command(
-            EXCSTurnout.toggle_turnout_cmd(self._turnout.id, TurnoutState.CLOSED)
-        )
+        try:
+            await self._client.send_command(
+                EXCSTurnout.toggle_turnout_cmd(self._turnout.id, TurnoutState.CLOSED)
+            )
+        except EXCSError:
+            # Handle the error if needed
+            LOGGER.exception("Failed to turn CLOSE turnout %d", self._turnout.id)
 
 
 class LocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
@@ -171,12 +187,28 @@ class LocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
 
     async def async_turn_on(self, **_: Any) -> None:
         """Turn on the function."""
-        await self._client.send_command(
-            self._loco.toggle_function_cmd(self._function_id, LocoFunctionCmd.ON)
-        )
+        try:
+            await self._client.send_command(
+                self._loco.toggle_function_cmd(self._function_id, LocoFunctionCmd.ON)
+            )
+        except EXCSError:
+            # Handle the error if needed
+            LOGGER.exception(
+                "Failed to turn ON function %d for loco %d",
+                self._function_id,
+                self._loco.id,
+            )
 
     async def async_turn_off(self, **_: Any) -> None:
         """Turn off the function."""
-        await self._client.send_command(
-            self._loco.toggle_function_cmd(self._function_id, LocoFunctionCmd.OFF)
-        )
+        try:
+            await self._client.send_command(
+                self._loco.toggle_function_cmd(self._function_id, LocoFunctionCmd.OFF)
+            )
+        except EXCSError:
+            # Handle the error if needed
+            LOGGER.exception(
+                "Failed to turn OFF function %d for loco %d",
+                self._function_id,
+                self._loco.id,
+            )

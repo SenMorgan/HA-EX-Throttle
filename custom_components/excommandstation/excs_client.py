@@ -236,8 +236,14 @@ class EXCommandStationClient:
             raise EXCSConnectionError(msg)
 
         # Send the command to the EX-CommandStation
-        self._writer.write((f"<{command}>\n").encode("ascii"))
-        await self._writer.drain()
+        try:
+            self._writer.write((f"<{command}>\n").encode("ascii"))
+            await self._writer.drain()
+        except OSError as err:
+            msg = f"Error sending command to EX-CommandStation: {err}"
+            LOGGER.error(msg)
+            self._notify_connection_state(connected=False, exc=err)
+            raise EXCSConnectionError(msg) from err
 
     async def send_command_with_response(
         self, command: str, expected_prefix: str
