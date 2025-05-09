@@ -47,9 +47,15 @@ class LocoUpdateCoordinator(DataUpdateCoordinator[RosterEntry]):
         """Register callbacks and call initial update."""
         self._unsub_callbacks.extend(
             [
-                self._client.connect_signal(SIGNAL_CONNECTED, self._on_connect),
-                self._client.connect_signal(SIGNAL_DISCONNECTED, self._on_disconnect),
-                self._client.connect_signal(SIGNAL_DATA_PUSHED, self._handle_push),
+                self._client.register_signal_handler(
+                    SIGNAL_CONNECTED, self._on_connect
+                ),
+                self._client.register_signal_handler(
+                    SIGNAL_DISCONNECTED, self._on_disconnect
+                ),
+                self._client.register_signal_handler(
+                    SIGNAL_DATA_PUSHED, self._handle_push
+                ),
             ]
         )
 

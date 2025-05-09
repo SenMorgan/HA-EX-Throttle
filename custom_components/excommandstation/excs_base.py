@@ -150,7 +150,7 @@ class EXCSBaseClient:
         signal = f"{DOMAIN}_{self.host}_{signal}"
         async_dispatcher_send(self._hass, signal, *args)
 
-    def connect_signal(
+    def register_signal_handler(
         self, signal: str, callback: Callable[..., Any]
     ) -> Callable[[], None]:
         """Connect a callback to a signal."""
