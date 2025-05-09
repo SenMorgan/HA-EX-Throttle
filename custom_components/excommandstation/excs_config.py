@@ -58,7 +58,8 @@ class EXCSConfigClient(EXCSBaseClient):
     async def get_excs_system_info(self) -> None:
         """Request system information from the EX-CommandStation."""
         if not self.connected:
-            raise EXCSConnectionError
+            msg = "Not connected to EX-CommandStation"
+            raise EXCSConnectionError(msg)
 
         LOGGER.debug("Requesting EX-CommandStation system info")
         try:
@@ -69,8 +70,8 @@ class EXCSConfigClient(EXCSBaseClient):
             msg = "Timeout waiting for system info response from EX-CommandStation"
             LOGGER.error(msg)
             raise EXCSConnectionError(msg) from err
-        except EXCSError as err:
-            LOGGER.error("Error while getting system info: %s", err)
+        except EXCSError:
+            LOGGER.exception("Error while getting system info: %s")
             raise
         except Exception:
             LOGGER.exception("Unexpected error while getting system info")
@@ -116,7 +117,8 @@ class EXCSConfigClient(EXCSBaseClient):
     async def get_turnouts(self) -> None:
         """Request the list of turnouts from the EX-CommandStation."""
         if not self.connected:
-            raise EXCSConnectionError
+            msg = "Not connected to EX-CommandStation"
+            raise EXCSConnectionError(msg)
 
         LOGGER.debug("Requesting list of turnouts from EX-CommandStation")
 
@@ -182,7 +184,8 @@ class EXCSConfigClient(EXCSBaseClient):
     async def get_roster_entries(self) -> None:
         """Request the list of roster entries from the EX-CommandStation."""
         if not self.connected:
-            raise EXCSConnectionError
+            msg = "Not connected to EX-CommandStation"
+            raise EXCSConnectionError(msg)
 
         LOGGER.debug("Requesting list of roster entries from EX-CommandStation")
 
