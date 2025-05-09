@@ -11,12 +11,13 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_send,
 )
 
-from .commands import CMD_EXCS_SYS_INFO
 from .const import (
-    DEFAULT_TIMEOUT,
+    CONNECTION_TIMEOUT,
     DOMAIN,
-    LISTENER_TIMEOUT,
+    HEARTBEAT_TIMEOUT,
     LOGGER,
+    MAX_BACKOFF_TIME,
+    RESPONSE_TIMEOUT,
     SIGNAL_CONNECTED,
     SIGNAL_DATA_PUSHED,
     SIGNAL_DISCONNECTED,
@@ -34,116 +35,53 @@ class EXCSBaseClient:
 
     def __init__(self, hass: HomeAssistant, host: str, port: int) -> None:
         """Initialize the EX-CommandStation base client."""
+        LOGGER.debug(
+            "Initializing EX-CommandStation client with host: %s, port: %s", host, port
+        )
         self.host = host
         self.port = port
         self.connected = False
         self._hass = hass
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
-        self._listen_task = None
-        self._listener_ready_event = asyncio.Event()
-        self._response_futures: dict[str, asyncio.Future] = {}
+        self._listener_task = None
+        self._connected_event = asyncio.Event()
+        self._response_futures: dict[str, asyncio.Future[str]] = {}
+        self._futures_lock = asyncio.Lock()
+
+        # Flag to control the running state of the client and reconnection attempts
+        self._running = True
 
     async def connect(self) -> None:
         """Connect to the EX-CommandStation."""
-        LOGGER.debug("Connecting to EX-CommandStation at %s:%s", self.host, self.port)
-
-        # Already connected
-        if self.connected and self._reader is not None and self._writer is not None:
-            return
-
-        try:
-            self._reader, self._writer = await asyncio.open_connection(
-                self.host, self.port
+        LOGGER.debug("Connecting to EX-CommandStation on %s:%s", self.host, self.port)
+        if self._listener_task is None or self._listener_task.done():
+            self._listener_task = self._hass.async_create_background_task(
+                self._listener_loop(), name="EXCS Listener"
             )
-            LOGGER.debug("Connected to EX-CommandStation, initializing listener...")
-            # Mark as connected and notify entities
-            self._notify_connection_state(connected=True)
 
-            # Start the listener task
-            if self._listen_task is None or self._listen_task.done():
-                self._listen_task = asyncio.create_task(self._listen())
-                LOGGER.debug("Listener task started")
-
-            # Wait for the listener to be ready
+        # Wait for the connection to be established
+        if not self._connected_event.is_set():
             await asyncio.wait_for(
-                self._listener_ready_event.wait(), timeout=DEFAULT_TIMEOUT
+                self._connected_event.wait(), timeout=CONNECTION_TIMEOUT
             )
-
-        except TimeoutError as err:
-            msg = "Timeout while connecting to EX-CommandStation"
-            LOGGER.error(msg)
-            self._notify_connection_state(connected=False, exc=err)
-            raise EXCSConnectionError(msg) from None
-        except OSError as err:
-            msg = (
-                f"Failed to connect to EX-CommandStation at {self.host}:{self.port}: "
-                f"{err}"
+            LOGGER.debug(
+                "Connected to EX-CommandStation on %s:%s", self.host, self.port
             )
-            self._notify_connection_state(connected=False, exc=err)
-            raise EXCSConnectionError(msg) from err
-
-        if self._reader is None or self._writer is None:
-            msg = "Reader or writer not initialized properly"
-            LOGGER.error(msg)
-            self._notify_connection_state(connected=False, exc=EXCSConnectionError(msg))
-            raise EXCSConnectionError(msg)
-
-        LOGGER.debug("Successfully connected to EX-CommandStation")
 
     async def disconnect(self) -> None:
         """Disconnect from the EX-CommandStation."""
-        LOGGER.debug("Disconnecting from EX-CommandStation")
+        LOGGER.debug("Disconnecting from EX-CommandStation...")
+        self._running = False
 
         # Cancel listener task
-        if self._listen_task and not self._listen_task.done():
-            self._listen_task.cancel()
+        if self._listener_task and not self._listener_task.done():
+            self._listener_task.cancel()
             with contextlib.suppress(asyncio.TimeoutError, asyncio.CancelledError):
-                await asyncio.wait_for(self._listen_task, timeout=2)
+                await asyncio.wait_for(self._listener_task, timeout=2)
 
-        # Close writer
-        if self._writer:
-            with contextlib.suppress(OSError):
-                self._writer.close()
-                await self._writer.wait_closed()
-
-        self._reader = None
-        self._writer = None
-        self._listen_task = None
-
-        # Update state and notify entities
-        self._notify_connection_state(
-            connected=False, exc=EXCSConnectionError("Disconnected")
-        )
-
-    async def _reconnect(self) -> None:
-        """Attempt to reconnect to the EX-CommandStation with exponential backoff."""
-        await self.disconnect()
-
-        LOGGER.debug("Attempting to reconnect to EX-CommandStation...")
-        retries = 0
-        max_backoff = 30  # Maximum backoff interval in seconds
-
-        while not self.connected:
-            try:
-                await self.connect()
-                LOGGER.info(
-                    "Reconnected to EX-CommandStation after %d attempts", retries + 1
-                )
-
-                # Send system info request to update entities states after reconnect
-                await self.send_command(CMD_EXCS_SYS_INFO)
-
-            except EXCSConnectionError as err:
-                retries += 1
-                backoff = min(2**retries, max_backoff)
-                LOGGER.warning(
-                    "Reconnect attempt %d failed: %s. Retrying in %d seconds",
-                    retries,
-                    err,
-                    backoff,
-                )
-                await asyncio.sleep(backoff)
+        self._listener_task = None
+        LOGGER.debug("Disconnected from EX-CommandStation")
 
     def dispatch_signal(self, signal: str, *args: Any) -> None:
         """Dispatch a signal to all registered callbacks."""
@@ -164,8 +102,10 @@ class EXCSBaseClient:
         if connected != self.connected:
             self.connected = connected
             if connected:
+                self._connected_event.set()
                 self.dispatch_signal(SIGNAL_CONNECTED)
             else:
+                self._connected_event.clear()
                 self.dispatch_signal(SIGNAL_DISCONNECTED, exc)
 
     async def send_command(self, command: str) -> None:
@@ -192,15 +132,17 @@ class EXCSBaseClient:
         """Send a command and wait for a response with the expected prefix."""
         # Create a future to wait for the response and store it in the dictionary
         future = asyncio.get_running_loop().create_future()
-        self._response_futures[expected_prefix] = future
+        async with self._futures_lock:
+            self._response_futures[expected_prefix] = future
 
         await self.send_command(command)
 
         # Wait for the response or timeout and remove the future from the dictionary
         try:
-            response = await asyncio.wait_for(future, timeout=DEFAULT_TIMEOUT)
+            response = await asyncio.wait_for(future, timeout=RESPONSE_TIMEOUT)
         finally:
-            self._response_futures.pop(expected_prefix, None)
+            async with self._futures_lock:
+                self._response_futures.pop(expected_prefix, None)
 
         # Check if the response starts with the expected prefix
         if not response.startswith(expected_prefix):
@@ -213,43 +155,101 @@ class EXCSBaseClient:
 
         return response
 
-    async def _listen(self) -> None:
-        """Listen for incoming messages from the EX-CommandStation."""
-        self._listener_ready_event.set()  # Notify that the listener task is ready
-        LOGGER.debug("Listener started")
+    async def _listener_loop(self) -> None:
+        """
+        Run connection and listener loop for the EX-CommandStation.
+
+        This loop will attempt to connect to the EX-CommandStation and
+        handle incoming messages. If the connection is lost, it will
+        attempt to reconnect with exponential backoff.
+        """
+        retries = 0  # Count the number of connection attempts
+
+        while self._running:
+            try:
+                self._reader, self._writer = await asyncio.open_connection(
+                    self.host, self.port
+                )
+
+                # Reset retries on successful connection
+                retries = 0
+
+                # Mark as connected and notify entities
+                self._notify_connection_state(connected=True)
+
+                # Handle the stream of data
+                await self.handle_stream()
+
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                LOGGER.info("Stopping listener loop due to cancellation")
+                self._notify_connection_state(
+                    connected=False, exc=EXCSConnectionError("Listener loop cancelled")
+                )
+                break
+            except (OSError, TimeoutError) as e:
+                LOGGER.warning("Connection failed or timed out: %s", e)
+                self._notify_connection_state(connected=False, exc=e)
+
+                # Attempt to reconnect with exponential backoff
+                retries += 1
+                backoff = min(2**retries, MAX_BACKOFF_TIME)
+                LOGGER.warning(
+                    "Reconnecting in %d seconds (attempt %d)", backoff, retries
+                )
+                await asyncio.sleep(backoff)
+
+        LOGGER.info("Listener loop stopped")
+
+    async def handle_stream(self) -> None:
+        """Handle the stream of data from the EX-CommandStation."""
+        if self._reader is None or self._writer is None:
+            msg = "Reader or writer not initialized"
+            LOGGER.error(msg)
+            self._notify_connection_state(connected=False, exc=EXCSConnectionError(msg))
+            raise EXCSConnectionError(msg)
 
         try:
-            while True:
-                if not self.connected or self._reader is None:
-                    LOGGER.warning("Listener task detected disconnection")
-                    await self._reconnect()
-                    continue
-
-                try:
-                    # Read a line from the EX-CommandStation
-                    line = await asyncio.wait_for(
-                        self._reader.readline(), timeout=LISTENER_TIMEOUT
-                    )
-                    if not line:
-                        LOGGER.warning("Connection closed by EX-CommandStation")
-                        await self._reconnect()
-                        continue
-
-                    message = line.decode("ascii").strip()
-                    self._parse_message(message)
-
-                except TimeoutError:
-                    LOGGER.warning("Listener timeout, reconnecting...")
-                    await self._reconnect()
-                except OSError as err:
-                    LOGGER.error("Error while reading from EX-CommandStation: %s", err)
-                    await self._reconnect()
-                except asyncio.CancelledError:
-                    LOGGER.debug("Listener task cancelled")
+            LOGGER.debug("Listening for incoming messages from EX-CommandStation")
+            while not self._reader.at_eof():
+                # Avoid blocking indefinitely: EX-CommandStation sends heartbeat
+                # messages, so we can set a timeout for reading
+                line = await asyncio.wait_for(
+                    self._reader.readline(), timeout=HEARTBEAT_TIMEOUT
+                )
+                if not line:
+                    LOGGER.warning("Connection closed by EX-CommandStation")
                     break
+
+                message = line.decode("ascii").strip()
+                self._parse_message(message)
+
+            # Handle EOF
+            msg = "Connection closed by EX-CommandStation"
+            LOGGER.info(msg)
+            self._notify_connection_state(
+                connected=False,
+                exc=EXCSConnectionError(msg),
+            )
+        except TimeoutError:
+            msg = "Heartbeat timeout"
+            LOGGER.warning(msg)
+            self._notify_connection_state(connected=False, exc=EXCSConnectionError(msg))
+            # Do not raise an exception to reconnect immediately
+        except (OSError, UnicodeDecodeError) as err:
+            LOGGER.exception("Error while reading stream")
+            self._notify_connection_state(connected=False, exc=err)
+            # Do not raise an exception to reconnect immediately
         finally:
-            self._listener_ready_event.clear()
-            LOGGER.debug("Listener task cleanup complete")
+            # Close writer
+            if self._writer:
+                with contextlib.suppress(OSError):
+                    self._writer.close()
+                    await self._writer.wait_closed()
+
+            # Reset reader and writer
+            self._writer = None
+            self._reader = None
+            LOGGER.debug("Stream closed")
 
     def _parse_message(self, message: str) -> None:
         """Parse incoming messages from the EX-CommandStation."""
@@ -280,7 +280,7 @@ class EXCSBaseClient:
         for prefix, future in self._response_futures.items():
             if message.startswith(prefix) and not future.done():
                 future.set_result(message)
-                LOGGER.debug("Future response set for prefix: %s", prefix)
+                LOGGER.debug("Processing awaited response with prefix: '%s'", prefix)
                 return True
 
         return False

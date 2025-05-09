@@ -10,26 +10,29 @@ from .excs_config import EXCSConfigClient
 from .excs_exceptions import EXCSError, EXCSValueError
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant, ServiceCall
+    from homeassistant.core import ServiceCall
 
 
 class EXCommandStationClient(EXCSConfigClient):
     """Client for communicating with the EX-CommandStation."""
 
-    def __init__(self, hass: HomeAssistant, host: str, port: int) -> None:
-        """Initialize the EX-CommandStation client."""
-        super().__init__(hass, host, port)
-        LOGGER.debug(
-            "EX-CommandStation client initialized with host: %s, port: %d", host, port
-        )
+    async def async_validate_config(self) -> None:
+        """Validate the configuration of the EX-CommandStation client."""
+        if not self.connected:
+            await self.connect()
+
+        # Validate system info
+        LOGGER.debug("Validating EX-CommandStation client configuration")
+        await self.get_excs_system_info()
+        await self.validate_excs_version()
 
     async def async_setup(self) -> None:
         """Set up the EX-CommandStation client."""
-        LOGGER.debug("Setting up EX-CommandStation client")
         if not self.connected:
             await self.connect()
 
         # Fetch EX-CommandStation system info and validate version
+        LOGGER.debug("Configuring EX-CommandStation client")
         await self.get_excs_system_info()
         await self.validate_excs_version()
         # Fetch the list of turnouts

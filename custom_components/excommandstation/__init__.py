@@ -39,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await client.async_setup()
-    except EXCSConnectionError as err:
+    except (EXCSConnectionError, TimeoutError) as err:
         await client.async_shutdown()
         raise ConfigEntryNotReady from err
     except EXCSVersionError as err:
