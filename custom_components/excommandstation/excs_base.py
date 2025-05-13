@@ -11,9 +11,11 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_send,
 )
 
+from .commands import CMD_KEEP_ALIVE
 from .const import (
     CONNECTION_TIMEOUT,
     DOMAIN,
+    HEARTBEAT_INTERVAL,
     HEARTBEAT_TIMEOUT,
     LOGGER,
     MAX_BACKOFF_TIME,
@@ -44,7 +46,8 @@ class EXCSBaseClient:
         self._hass = hass
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
-        self._listener_task = None
+        self._listener_task: asyncio.Task | None = None
+        self._keep_alive_task: asyncio.Task | None = None
         self._connected_event = asyncio.Event()
         self._response_futures: dict[str, asyncio.Future[str]] = {}
         self._futures_lock = asyncio.Lock()
@@ -55,19 +58,22 @@ class EXCSBaseClient:
     async def connect(self) -> None:
         """Connect to the EX-CommandStation."""
         LOGGER.debug("Connecting to EX-CommandStation on %s:%s", self.host, self.port)
+
+        # Start listener task
         if self._listener_task is None or self._listener_task.done():
             self._listener_task = self._hass.async_create_background_task(
                 self._listener_loop(), name="EXCS Listener"
             )
 
+        # Start keep-alive task
+        if self._keep_alive_task is None or self._keep_alive_task.done():
+            self._keep_alive_task = self._hass.async_create_background_task(
+                self._keep_alive_loop(), name="EXCS Keep-Alive"
+            )
+
         # Wait for the connection to be established
-        if not self._connected_event.is_set():
-            await asyncio.wait_for(
-                self._connected_event.wait(), timeout=CONNECTION_TIMEOUT
-            )
-            LOGGER.debug(
-                "Connected to EX-CommandStation on %s:%s", self.host, self.port
-            )
+        await self.wait_for_connection()
+        LOGGER.debug("Connected to EX-CommandStation on %s:%s", self.host, self.port)
 
     async def disconnect(self) -> None:
         """Disconnect from the EX-CommandStation."""
@@ -80,8 +86,21 @@ class EXCSBaseClient:
             with contextlib.suppress(asyncio.TimeoutError, asyncio.CancelledError):
                 await asyncio.wait_for(self._listener_task, timeout=2)
 
+        # Cancel keep-alive task
+        if self._keep_alive_task and not self._keep_alive_task.done():
+            self._keep_alive_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._keep_alive_task
+
         self._listener_task = None
         LOGGER.debug("Disconnected from EX-CommandStation")
+
+    async def wait_for_connection(self) -> None:
+        """Wait until the client is connected to the EX-CommandStation."""
+        if not self._connected_event.is_set():
+            await asyncio.wait_for(
+                self._connected_event.wait(), timeout=CONNECTION_TIMEOUT
+            )
 
     def dispatch_signal(self, signal: str, *args: Any) -> None:
         """Dispatch a signal to all registered callbacks."""
@@ -155,6 +174,24 @@ class EXCSBaseClient:
 
         return response
 
+    async def _keep_alive_loop(self) -> None:
+        """Send periodic keep-alive messages to the EX-CommandStation."""
+        while self._running:
+            # Wait for the connection to be established
+            await self.wait_for_connection()
+
+            try:
+                # Wait for the next interval
+                await asyncio.sleep(HEARTBEAT_INTERVAL)
+                # Send a heartbeat command
+                await self.send_command(CMD_KEEP_ALIVE)
+                LOGGER.debug("Keep-alive message sent")
+            except EXCSConnectionError as err:
+                LOGGER.warning("Keep-alive failed: %s", err)
+            except asyncio.CancelledError:
+                LOGGER.info("Stopping keep-alive loop due to task cancellation")
+                break
+
     async def _listener_loop(self) -> None:
         """
         Run connection and listener loop for the EX-CommandStation.
@@ -217,7 +254,6 @@ class EXCSBaseClient:
                     self._reader.readline(), timeout=HEARTBEAT_TIMEOUT
                 )
                 if not line:
-                    LOGGER.warning("Connection closed by EX-CommandStation")
                     break
 
                 message = line.decode("ascii").strip()

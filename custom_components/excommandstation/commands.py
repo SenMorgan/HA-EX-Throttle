@@ -22,6 +22,7 @@ RESP_EMPTY_OR_FAIL: Final[str] = "X"
 CMD_EXCS_SYS_INFO: Final[str] = "s"
 CMD_TRACKS_ON: Final[str] = "1"
 CMD_TRACKS_OFF: Final[str] = "0"
+CMD_KEEP_ALIVE: Final[str] = "#"
 RESP_TRACKS_ON: Final[str] = "p1"
 RESP_TRACKS_OFF: Final[str] = "p0"
 
