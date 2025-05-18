@@ -145,9 +145,7 @@ class EXCSBaseClient:
             self._notify_connection_state(connected=False, exc=err)
             raise EXCSConnectionError(msg) from err
 
-    async def send_command_with_response(
-        self, command: str, expected_prefix: str
-    ) -> str:
+    async def await_command_response(self, command: str, expected_prefix: str) -> str:
         """Send a command and wait for a response with the expected prefix."""
         # Create a future to wait for the response and store it in the dictionary
         future = asyncio.get_running_loop().create_future()

@@ -63,7 +63,7 @@ class EXCSConfigClient(EXCSBaseClient):
 
         LOGGER.debug("Requesting EX-CommandStation system info")
         try:
-            response = await self.send_command_with_response(
+            response = await self.await_command_response(
                 CMD_EXCS_SYS_INFO, RESP_EXCS_SYS_INFO_PREFIX
             )
         except TimeoutError as err:
@@ -144,7 +144,7 @@ class EXCSConfigClient(EXCSBaseClient):
     async def _get_turnouts_list(self) -> list[str]:
         """Get the list of turnout IDs from the EX-CommandStation."""
         try:
-            response = await self.send_command_with_response(
+            response = await self.await_command_response(
                 EXCSTurnoutConsts.CMD_LIST_TURNOUTS,
                 EXCSTurnoutConsts.RESP_LIST_PREFIX,
             )
@@ -163,7 +163,7 @@ class EXCSConfigClient(EXCSBaseClient):
     async def _get_turnout_details(self, turnout_id: str) -> EXCSTurnout:
         """Get details for a specific turnout ID."""
         try:
-            response = await self.send_command_with_response(
+            response = await self.await_command_response(
                 EXCSTurnoutConsts.CMD_GET_TURNOUT_DETAILS_FMT.format(id=turnout_id),
                 EXCSTurnoutConsts.RESP_DETAILS_PREFIX_FMT.format(id=turnout_id),
             )
@@ -218,7 +218,7 @@ class EXCSConfigClient(EXCSBaseClient):
     async def _get_roster_ids(self) -> list[str]:
         """Get the list of roster entry IDs from the EX-CommandStation."""
         try:
-            response = await self.send_command_with_response(
+            response = await self.await_command_response(
                 RosterConsts.CMD_LIST_ROSTER_ENTRIES,
                 RosterConsts.RESP_LIST_PREFIX,
             )
@@ -237,7 +237,7 @@ class EXCSConfigClient(EXCSBaseClient):
     async def _get_roster_entry_details(self, roster_id: str) -> RosterEntry:
         """Get details for a specific roster entry ID."""
         try:
-            response = await self.send_command_with_response(
+            response = await self.await_command_response(
                 RosterConsts.CMD_GET_ROSTER_DETAILS_FMT.format(cab_id=roster_id),
                 RosterConsts.RESP_DETAILS_PREFIX_FMT.format(cab_id=roster_id),
             )
