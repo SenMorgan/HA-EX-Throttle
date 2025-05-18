@@ -24,11 +24,7 @@ from .const import (
     SIGNAL_DATA_PUSHED,
     SIGNAL_DISCONNECTED,
 )
-from .excs_exceptions import (
-    EXCSConnectionError,
-    EXCSInvalidArgumentError,
-    EXCSInvalidResponseError,
-)
+from .excs_exceptions import EXCSConnectionError, EXCSInvalidResponseError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -149,20 +145,16 @@ class EXCSBaseClient:
             self._notify_connection_state(connected=False, exc=err)
             raise EXCSConnectionError(msg) from err
 
-    async def create_awaited_response(self, expected_prefix: str) -> None:
-        """Create a future to wait for a response with the expected prefix."""
+    async def send_command_with_response(
+        self, command: str, expected_prefix: str
+    ) -> str:
+        """Send a command and wait for a response with the expected prefix."""
+        # Create a future to wait for the response and store it in the dictionary
         future = asyncio.get_running_loop().create_future()
         async with self._futures_lock:
             self._response_futures[expected_prefix] = future
 
-    async def wait_for_response(self, expected_prefix: str) -> str:
-        """Wait for a response with the expected prefix."""
-        async with self._futures_lock:
-            future = self._response_futures.get(expected_prefix)
-            if future is None:
-                msg = f"No future found for expected prefix: {expected_prefix}"
-                LOGGER.error(msg)
-                raise EXCSInvalidArgumentError(msg)
+        await self.send_command(command)
 
         # Wait for the response or timeout and remove the future from the dictionary
         try:
@@ -312,7 +304,7 @@ class EXCSBaseClient:
             LOGGER.warning("Empty message received from EX-CommandStation")
             return
 
-        # Message was awaited — check if it matches a registered futures
+        # Message was awaited via send_command_with_response()
         if self._handle_future_response(message):
             return
 

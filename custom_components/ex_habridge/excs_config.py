@@ -63,10 +63,9 @@ class EXCSConfigClient(EXCSBaseClient):
 
         LOGGER.debug("Requesting EX-CommandStation system info")
         try:
-            # Create awaited response for system info
-            await self.create_awaited_response(RESP_EXCS_SYS_INFO_PREFIX)
-            await self.send_command(CMD_EXCS_SYS_INFO)
-            response = await self.wait_for_response(RESP_EXCS_SYS_INFO_PREFIX)
+            response = await self.send_command_with_response(
+                CMD_EXCS_SYS_INFO, RESP_EXCS_SYS_INFO_PREFIX
+            )
         except TimeoutError as err:
             msg = "Timeout waiting for system info response from EX-CommandStation"
             LOGGER.error(msg)
@@ -145,12 +144,10 @@ class EXCSConfigClient(EXCSBaseClient):
     async def _get_turnouts_list(self) -> list[str]:
         """Get the list of turnout IDs from the EX-CommandStation."""
         try:
-            # Create awaited response for turnout list
-            await self.create_awaited_response(EXCSTurnoutConsts.RESP_LIST_PREFIX)
-            await self.send_command(EXCSTurnoutConsts.CMD_LIST_TURNOUTS)
-            response = await self.wait_for_response(EXCSTurnoutConsts.RESP_LIST_PREFIX)
-
-            # Parse the turnout IDs from the response
+            response = await self.send_command_with_response(
+                EXCSTurnoutConsts.CMD_LIST_TURNOUTS,
+                EXCSTurnoutConsts.RESP_LIST_PREFIX,
+            )
             return EXCSTurnout.parse_turnout_ids(response)
         except TimeoutError:
             msg = "Timeout waiting for turnout list response"
@@ -166,18 +163,10 @@ class EXCSConfigClient(EXCSBaseClient):
     async def _get_turnout_details(self, turnout_id: str) -> EXCSTurnout:
         """Get details for a specific turnout ID."""
         try:
-            # Create command and response prefix for turnout details
-            cmd = EXCSTurnoutConsts.CMD_GET_TURNOUT_DETAILS_FMT.format(id=turnout_id)
-            resp_prefix = EXCSTurnoutConsts.RESP_DETAILS_PREFIX_FMT.format(
-                id=turnout_id
+            response = await self.send_command_with_response(
+                EXCSTurnoutConsts.CMD_GET_TURNOUT_DETAILS_FMT.format(id=turnout_id),
+                EXCSTurnoutConsts.RESP_DETAILS_PREFIX_FMT.format(id=turnout_id),
             )
-
-            # Create awaited response for turnout details
-            await self.create_awaited_response(resp_prefix)
-            await self.send_command(cmd)
-            response = await self.wait_for_response(resp_prefix)
-
-            # Parse the turnout details from the response
             return EXCSTurnout.from_detail_response(response)
         except TimeoutError:
             msg = f"Timeout waiting for turnout details for ID {turnout_id}"
@@ -229,12 +218,10 @@ class EXCSConfigClient(EXCSBaseClient):
     async def _get_roster_ids(self) -> list[str]:
         """Get the list of roster entry IDs from the EX-CommandStation."""
         try:
-            # Create awaited response for roster list
-            await self.create_awaited_response(RosterConsts.RESP_LIST_PREFIX)
-            await self.send_command(RosterConsts.CMD_LIST_ROSTER_ENTRIES)
-            response = await self.wait_for_response(RosterConsts.RESP_LIST_PREFIX)
-
-            # Parse the roster entry IDs from the response
+            response = await self.send_command_with_response(
+                RosterConsts.CMD_LIST_ROSTER_ENTRIES,
+                RosterConsts.RESP_LIST_PREFIX,
+            )
             return RosterEntry.parse_roster_ids(response)
         except TimeoutError:
             msg = "Timeout waiting for roster list response"
@@ -250,16 +237,10 @@ class EXCSConfigClient(EXCSBaseClient):
     async def _get_roster_entry_details(self, roster_id: str) -> RosterEntry:
         """Get details for a specific roster entry ID."""
         try:
-            # Create command and response prefix for roster entry details
-            cmd = RosterConsts.CMD_GET_ROSTER_DETAILS_FMT.format(cab_id=roster_id)
-            resp_prefix = RosterConsts.RESP_DETAILS_PREFIX_FMT.format(cab_id=roster_id)
-
-            # Create awaited response for roster entry details
-            await self.create_awaited_response(resp_prefix)
-            await self.send_command(cmd)
-            response = await self.wait_for_response(resp_prefix)
-
-            # Parse the roster entry details from the response
+            response = await self.send_command_with_response(
+                RosterConsts.CMD_GET_ROSTER_DETAILS_FMT.format(cab_id=roster_id),
+                RosterConsts.RESP_DETAILS_PREFIX_FMT.format(cab_id=roster_id),
+            )
             return RosterEntry.from_detail_response(response)
         except TimeoutError:
             msg = f"Timeout waiting for roster details for ID {roster_id}"
