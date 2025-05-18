@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .commands import (
     CMD_EXCS_SYS_INFO,
     RESP_EXCS_SYS_INFO_PREFIX,
     RESP_EXCS_SYS_INFO_REGEX,
+    RESP_TRACKS_OFF,
+    RESP_TRACKS_ON,
 )
-from .const import LOGGER, MIN_SUPPORTED_VERSION
+from .const import LOGGER, MIN_SUPPORTED_VERSION, SIGNAL_DATA_PUSHED
 from .excs_base import EXCSBaseClient
 from .excs_exceptions import (
     EXCSConnectionError,
@@ -22,6 +24,8 @@ from .roster import RosterConsts, RosterEntry
 from .turnout import EXCSTurnout, EXCSTurnoutConsts
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from homeassistant.core import HomeAssistant
 
 
@@ -49,17 +53,44 @@ class EXCSConfigClient(EXCSBaseClient):
         self.system_info = EXCSSystemInfo()
         self.turnouts: list[EXCSTurnout] = []
         self.roster_entries: list[RosterEntry] = []
+        self.initial_tracks_state: bool = False
 
     @classmethod
     def parse_version(cls, version_str: str) -> tuple[int, ...]:
         """Parse a version string into a tuple of integers."""
         return tuple(int(part) for part in version_str.split("."))
 
+    async def _crate_initial_tracks_state_handler(self) -> None:
+        """Create a one-time signal handler for the initial tracks state."""
+        unsub_callback: Callable[..., Any]
+
+        def one_time_track_state_handler(message: str) -> None:
+            """Handle the initial tracks state message."""
+            nonlocal unsub_callback
+
+            if message == RESP_TRACKS_ON:
+                LOGGER.debug("Initial tracks state: ON")
+                self.initial_tracks_state = True
+                unsub_callback()
+            elif message == RESP_TRACKS_OFF:
+                LOGGER.debug("Initial tracks state: OFF")
+                self.initial_tracks_state = False
+                unsub_callback()
+
+        # Register a one-time signal handler for the initial track state
+        unsub_callback = self.register_signal_handler(
+            SIGNAL_DATA_PUSHED, one_time_track_state_handler
+        )
+        self.register_signal_handler(SIGNAL_DATA_PUSHED, one_time_track_state_handler)
+
     async def get_excs_system_info(self) -> None:
         """Request system information from the EX-CommandStation."""
         if not self.connected:
             msg = "Not connected to EX-CommandStation"
             raise EXCSConnectionError(msg)
+
+        # Create a one-time signal handler for the initial tracks state
+        await self._crate_initial_tracks_state_handler()
 
         LOGGER.debug("Requesting EX-CommandStation system info")
         try:

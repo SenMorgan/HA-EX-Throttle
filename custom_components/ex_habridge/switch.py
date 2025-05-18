@@ -75,6 +75,7 @@ class TracksPowerSwitch(EXCSEntity, SwitchEntity):
             icon="mdi:power",
         )
         self._attr_unique_id = f"{client.host}_{self.entity_description.key}"
+        self._attr_is_on = client.initial_tracks_state
 
     @callback
     def _handle_push(self, message: str) -> None:
