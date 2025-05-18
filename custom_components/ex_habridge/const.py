@@ -5,7 +5,7 @@ from typing import Final
 
 LOGGER: Logger = getLogger(__package__)
 
-DOMAIN: Final = "excommandstation"
+DOMAIN: Final = "ex_habridge"
 
 # Deault port used in the EX-CommandStation
 DEFAULT_PORT: Final = 2560

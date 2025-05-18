@@ -1,11 +1,11 @@
 > [!WARNING]
-> **Work in progress:** This integration is currently under development and its name may change.
+> **Work in progress:** This integration is currently under development and may not be fully functional. Please check back later for updates.
 
 <p align="center">
    <img src="https://media3.giphy.com/media/TLeLKUdIc1tvAxb7ab/source.gif" width="400" height="250" />
 </p>
 
-# EX-CommandStation Integration for Home Assistant
+# EX-HABridge Integration for Home Assistant
 
 This custom integration allows [Home Assistant](https://www.home-assistant.io/) to monitor and control an [EX-CommandStation](https://dcc-ex.com/ex-commandstation/index.html) — a simple but powerful DCC/DC command station used to run model train layouts.
 
@@ -37,11 +37,11 @@ This custom integration allows [Home Assistant](https://www.home-assistant.io/) 
 
 ## Installation
 
-1. Copy `custom_components/excommandstation` directory to your Home Assistant `custom_components` directory. The path should look like this: `custom_components/excommandstation/`.
+1. Copy `custom_components/ex_habridge` directory to your Home Assistant `custom_components` directory. The path should look like this: `custom_components/ex_habridge/`.
 2. Restart Home Assistant.
 3. Add the integration using the Home Assistant UI:
    - Go to **Settings** > **Devices & services** > **Add Integration**.
-   - Search for *EX-CommandStation* and follow the prompts to set it up.
+   - Search for *EX-HABridge* and follow the prompts to set it up.
 
 ## Disclaimer
 

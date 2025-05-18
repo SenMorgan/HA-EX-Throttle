@@ -2,7 +2,7 @@
 Custom integration to integrate EX-CommandStation with Home Assistant.
 
 For more details about this integration, please refer to
-https://github.com/SenMorgan/HA-CommandStation-EX
+https://github.com/SenMorgan/EX-HABridge
 """
 
 from __future__ import annotations
