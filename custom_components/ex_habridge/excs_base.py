@@ -129,7 +129,7 @@ class EXCSBaseClient:
 
     async def send_command(self, command: str) -> None:
         """Send a command to the EX-CommandStation."""
-        LOGGER.debug("Sending command: %s", command)
+        LOGGER.debug("Sending command: <%s>", command)
         if not self.connected or self._writer is None:
             msg = "Cannot send command: not connected to EX-CommandStation"
             LOGGER.error(msg)
