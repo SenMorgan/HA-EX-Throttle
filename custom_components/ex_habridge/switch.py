@@ -9,6 +9,7 @@ from homeassistant.core import callback
 
 from .const import DOMAIN, LOGGER
 from .entity import EXCSEntity, EXCSRosterEntity
+from .icons_helper import get_function_icon
 from .roster import LocoFunction, LocoFunctionCmd, RosterEntry
 from .turnout import EXCSTurnout, TurnoutState
 
@@ -171,9 +172,10 @@ class LocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
         self._attr_name = function.label
         self._attr_unique_id = f"{client.host}_loco_{loco.id}_function_{function.id}"
         self._attr_is_on = function.state
+
         self.entity_description = SwitchEntityDescription(
             key=f"function_{loco.id}_{function.id}",
-            icon="mdi:train",
+            icon=get_function_icon(function.label),  # Set icon based on function label
         )
 
     @callback
