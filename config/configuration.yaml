@@ -9,4 +9,4 @@ homeassistant:
 logger:
   default: info
   logs:
-    custom_components.excommandstation: debug
+    custom_components.ex_habridge: debug

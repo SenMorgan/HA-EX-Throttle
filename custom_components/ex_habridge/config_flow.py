@@ -9,12 +9,8 @@ from homeassistant.const import CONF_BASE, CONF_HOST, CONF_PORT, CONF_PROFILE_NA
 from slugify import slugify
 
 from .const import DEFAULT_PORT, DOMAIN, LOGGER
-from .excs_client import (
-    EXCommandStationClient,
-    EXCSConnectionError,
-    EXCSError,
-    EXCSVersionError,
-)
+from .excs_client import EXCommandStationClient
+from .excs_exceptions import EXCSConnectionError, EXCSError, EXCSVersionError
 
 USER_SCHEMA = vol.Schema(
     {
@@ -39,27 +35,15 @@ class EXCommandStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             host = user_input[CONF_HOST]
             port = user_input[CONF_PORT]
 
-            try:
-                client = EXCommandStationClient(host=host, port=port)
-                await client.async_setup()
-                await client.disconnect()
-            except EXCSConnectionError as e:
-                LOGGER.error("Connection error: %s", e)
-                _errors[CONF_BASE] = "cannot_connect"
-            except EXCSVersionError as e:
-                LOGGER.error("Unsupported version: %s", e)
-                _errors[CONF_BASE] = "unsupported_version"
-            except EXCSError as e:
-                LOGGER.error("Unexpected error: %s", e)
-                _errors[CONF_BASE] = "unknown"
-            else:
-                # If the connection is successful, proceed to create the entry
-                LOGGER.info("Successfully connected to %s:%s", host, port)
+            # Check if we already have this station configured
+            unique_id = slugify(f"{host}:{port}")
+            await self.async_set_unique_id(unique_id)
+            self._abort_if_unique_id_configured()
 
-                # Check if we already have this station configured
-                unique_id = slugify(f"{host}:{port}")
-                await self.async_set_unique_id(unique_id)
-                self._abort_if_unique_id_configured()
+            # Attempt to connect to the EX-CommandStation and validate the configuration
+            try:
+                client = EXCommandStationClient(self.hass, host, port)
+                await client.async_validate_config()
 
                 # Use provided profile name or default
                 title = (
@@ -71,6 +55,20 @@ class EXCommandStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=title,
                     data=user_input,
                 )
+            except TimeoutError:
+                LOGGER.error("Connection timeout")
+                _errors[CONF_BASE] = "cannot_connect"
+            except EXCSConnectionError as e:
+                LOGGER.error("Connection error: %s", e)
+                _errors[CONF_BASE] = "cannot_connect"
+            except EXCSVersionError as e:
+                LOGGER.error("Unsupported version: %s", e)
+                _errors[CONF_BASE] = "unsupported_version"
+            except EXCSError as e:
+                LOGGER.error("Unknown error: %s", e)
+                _errors[CONF_BASE] = "unknown"
+            finally:
+                await client.async_shutdown()
 
         # If no user input, show the form
         return self.async_show_form(
