@@ -49,7 +49,8 @@ class EXCSBaseClient:
         LOGGER.debug(
             "Initializing EX-CommandStation client with host: %s, port: %s", host, port
         )
-        self.host = host
+
+        self.host = host.strip().lower()  # Normalize host name
         self.port = port
         self.connected = False
         self._hass = hass
