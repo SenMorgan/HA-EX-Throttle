@@ -45,14 +45,11 @@ class EXCommandStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 client = EXCommandStationClient(self.hass, host, port)
                 await client.async_validate_config()
 
-                # Use provided profile name or default
-                title = (
-                    user_input[CONF_PROFILE_NAME]
-                    if user_input.get(CONF_PROFILE_NAME)
-                    else f"EX-CommandStation on {host}"
-                )
+                # Use provided profile name or fallback to default
                 return self.async_create_entry(
-                    title=title,
+                    title=user_input.get(
+                        CONF_PROFILE_NAME, f"EX-CommandStation on {host}"
+                    ),
                     data=user_input,
                 )
             except TimeoutError:
