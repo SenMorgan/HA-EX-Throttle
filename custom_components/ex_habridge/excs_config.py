@@ -47,9 +47,11 @@ class EXCSSystemInfo:
 class EXCSConfigClient(EXCSBaseClient):
     """EX-CommandStation Client with configuration and data retrieval capabilities."""
 
-    def __init__(self, hass: HomeAssistant, host: str, port: int) -> None:
+    def __init__(
+        self, hass: HomeAssistant, host: str, port: int, entry_id: str = ""
+    ) -> None:
         """Initialize the configuration client."""
-        super().__init__(hass, host, port)
+        super().__init__(hass, host, port, entry_id)
         self.system_info = EXCSSystemInfo()
         self.turnouts: list[EXCSTurnout] = []
         self.roster_entries: list[RosterEntry] = []

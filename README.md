@@ -9,9 +9,6 @@
 
 This custom integration allows [Home Assistant](https://www.home-assistant.io/) to monitor and control an [EX-CommandStation](https://dcc-ex.com/ex-commandstation/index.html) — a simple but powerful DCC/DC command station used to run model train layouts.
 
-> [!NOTE]
-> I'm a [Home Assistant](https://www.home-assistant.io/) user since 2018 and this is my first custom integration that I have started writing in 2025 for studying purposes and to help others connect the [EX-CommandStation](https://dcc-ex.com/ex-commandstation/index.html) from the innovative [DCC-EX](https://dcc-ex.com/) project with their Home Assistant setup.
-
 ## ✅ Planned and Implemented Features
 
 ### Core

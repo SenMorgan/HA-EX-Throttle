@@ -24,7 +24,11 @@ from .const import (
     SIGNAL_DATA_PUSHED,
     SIGNAL_DISCONNECTED,
 )
-from .excs_exceptions import EXCSConnectionError, EXCSInvalidResponseError
+from .excs_exceptions import (
+    EXCSArgumentError,
+    EXCSConnectionError,
+    EXCSInvalidResponseError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -35,14 +39,23 @@ if TYPE_CHECKING:
 class EXCSBaseClient:
     """Base client for EX-CommandStation with core connectivity functionality."""
 
-    def __init__(self, hass: HomeAssistant, host: str, port: int) -> None:
+    def __init__(
+        self, hass: HomeAssistant, host: str, port: int, entry_id: str = ""
+    ) -> None:
         """Initialize the EX-CommandStation base client."""
+        if not host or port <= 0:
+            msg = "Host cannot be empty and port must be greater than 0"
+            LOGGER.error(msg)
+            raise EXCSArgumentError(msg)
+
         LOGGER.debug(
             "Initializing EX-CommandStation client with host: %s, port: %s", host, port
         )
-        self.host = host
+
+        self.host = host.strip().lower()  # Normalize host name
         self.port = port
         self.connected = False
+        self.entry_id = entry_id or host
         self._hass = hass
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None

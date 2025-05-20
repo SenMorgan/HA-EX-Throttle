@@ -34,6 +34,7 @@ ICON_KEYWORDS_MAPPING: Final[dict[str, list[str]]] = {
     "smoke": ["smoke", "steam"],
     "speedometer-slow": ["creep", "slow", "shunt"],
     "speedometer": ["speed", "acceleration"],
+    "town-hall": ["station"],
     "track-light": ["inspection light", "inspection lights"],
     "transmission-tower": ["pantograph"],
     "turbine": ["compressor", "compressed"],
