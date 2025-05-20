@@ -21,3 +21,7 @@ class EXCSVersionError(EXCSError):
 
 class EXCSValueError(EXCSError):
     """Exception to indicate an invalid value in the EX-CommandStation response."""
+
+
+class EXCSArgumentError(EXCSError):
+    """Exception to indicate an invalid argument in the EX-CommandStation command."""
