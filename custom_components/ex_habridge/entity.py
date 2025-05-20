@@ -26,11 +26,13 @@ if TYPE_CHECKING:
 class EXCSEntity(Entity):
     """Base class for EX-CommandStation entities."""
 
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+
     def __init__(self, client: EXCommandStationClient) -> None:
         """Initialize the entity."""
         self._client = client
-        self._attr_has_entity_name = True
-        self._attr_should_poll = False
+        self._attr_available = client.connected  # Availible if client is connected
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, client.host)},
             name="EX-CommandStation",
@@ -38,8 +40,6 @@ class EXCSEntity(Entity):
             model="EX-CommandStation",
             sw_version=client.system_info.version,
         )
-        # Initialize availability based on current connection state
-        self._attr_available = client.connected
 
         # List to store signal unsubscribe callbacks
         self._unsub_callbacks = []
@@ -83,6 +83,9 @@ class EXCSEntity(Entity):
 class EXCSRosterEntity(CoordinatorEntity[LocoUpdateCoordinator]):
     """Base class for EX-CommandStation roster entities."""
 
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+
     def __init__(
         self,
         client: EXCommandStationClient,
@@ -93,13 +96,12 @@ class EXCSRosterEntity(CoordinatorEntity[LocoUpdateCoordinator]):
         super().__init__(coordinator)
         self._loco = roster_entry
         self._client = client
-        self._attr_has_entity_name = True
-        self._attr_should_poll = False
+        self._attr_available = client.connected  # Availible if client is connected
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{client.host}_loco_{roster_entry.id}")},
-            name=roster_entry.description,
+            name=f"Loco {roster_entry.description or roster_entry.id}",
             manufacturer="DCC-EX",
-            model=roster_entry.description,
+            model=roster_entry.description or f"Locomotive {roster_entry.id}",
             model_id=str(roster_entry.id),
             via_device=(DOMAIN, client.host),
         )
