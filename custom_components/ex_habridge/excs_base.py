@@ -39,7 +39,9 @@ if TYPE_CHECKING:
 class EXCSBaseClient:
     """Base client for EX-CommandStation with core connectivity functionality."""
 
-    def __init__(self, hass: HomeAssistant, host: str, port: int) -> None:
+    def __init__(
+        self, hass: HomeAssistant, host: str, port: int, entry_id: str = ""
+    ) -> None:
         """Initialize the EX-CommandStation base client."""
         if not host or port <= 0:
             msg = "Host cannot be empty and port must be greater than 0"
@@ -53,6 +55,7 @@ class EXCSBaseClient:
         self.host = host.strip().lower()  # Normalize host name
         self.port = port
         self.connected = False
+        self.entry_id = entry_id or host
         self._hass = hass
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None

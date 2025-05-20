@@ -75,7 +75,7 @@ class TracksPowerSwitch(EXCSEntity, SwitchEntity):
             key="tracks_power",
             icon="mdi:power",
         )
-        self._attr_unique_id = f"{client.host}_{self.entity_description.key}"
+        self._attr_unique_id = f"{client.entry_id}_{self.entity_description.key}"
         self._attr_is_on = client.initial_tracks_state
 
     @callback
@@ -118,7 +118,7 @@ class TurnoutSwitch(EXCSEntity, SwitchEntity):
             key=f"turnout_{turnout.id}",
             icon="mdi:source-branch",
         )
-        self._attr_unique_id = f"{client.host}_{self.entity_description.key}"
+        self._attr_unique_id = f"{client.entry_id}_{self.entity_description.key}"
         # Assuming THROWN means the switch is on
         self._attr_is_on = turnout.state == TurnoutState.THROWN
 
@@ -170,7 +170,9 @@ class LocoFunctionSwitch(EXCSRosterEntity, SwitchEntity):
 
         # Set entity properties
         self._attr_name = function.label
-        self._attr_unique_id = f"{client.host}_loco_{loco.id}_function_{function.id}"
+        self._attr_unique_id = (
+            f"{client.entry_id}_loco_{loco.id}_function_{function.id}"
+        )
         self._attr_is_on = function.state
 
         self.entity_description = SwitchEntityDescription(

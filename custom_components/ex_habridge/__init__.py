@@ -35,7 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     host = entry.data[CONF_HOST]
     port = entry.data[CONF_PORT]
 
-    client = EXCommandStationClient(hass, host, port)
+    client = EXCommandStationClient(hass, host, port, entry.entry_id)
 
     try:
         await client.async_setup()
