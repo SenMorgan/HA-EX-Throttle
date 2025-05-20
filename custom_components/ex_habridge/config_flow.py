@@ -41,6 +41,7 @@ class EXCommandStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._abort_if_unique_id_configured()
 
             # Attempt to connect to the EX-CommandStation and validate the configuration
+            client = None
             try:
                 client = EXCommandStationClient(self.hass, host, port)
                 await client.async_validate_config()
@@ -65,7 +66,9 @@ class EXCommandStationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 LOGGER.error("Unknown error: %s", e)
                 _errors[CONF_BASE] = "unknown"
             finally:
-                await client.async_shutdown()
+                # Ensure the client is closed properly
+                if client:
+                    await client.async_shutdown()
 
         # If no user input, show the form
         return self.async_show_form(
