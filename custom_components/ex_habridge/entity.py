@@ -32,7 +32,7 @@ class EXCSEntity(Entity):
     def __init__(self, client: EXCommandStationClient) -> None:
         """Initialize the entity."""
         self._client = client
-        self._attr_available = client.connected  # Availible if client is connected
+        self._attr_available = client.connected  # Available if client is connected
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, client.host)},
             name="EX-CommandStation",
@@ -96,7 +96,7 @@ class EXCSRosterEntity(CoordinatorEntity[LocoUpdateCoordinator]):
         super().__init__(coordinator)
         self._loco = roster_entry
         self._client = client
-        self._attr_available = client.connected  # Availible if client is connected
+        self._attr_available = client.connected  # Available if client is connected
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{client.host}_loco_{roster_entry.id}")},
             name=f"Loco {roster_entry.description or roster_entry.id}",
