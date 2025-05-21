@@ -39,6 +39,7 @@ class EXCSEntity(Entity):
             manufacturer="DCC-EX",
             model="EX-CommandStation",
             sw_version=client.system_info.version,
+            suggested_area="Train Layout",
         )
 
         # List to store signal unsubscribe callbacks
@@ -104,4 +105,5 @@ class EXCSRosterEntity(CoordinatorEntity[LocoUpdateCoordinator]):
             model=roster_entry.description or f"Locomotive {roster_entry.id}",
             model_id=str(roster_entry.id),
             via_device=(DOMAIN, client.host),
+            suggested_area="Train Layout",
         )
