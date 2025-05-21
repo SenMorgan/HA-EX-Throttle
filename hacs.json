@@ -1,5 +1,6 @@
 {
     "name": "EX-HABridge",
     "homeassistant": "2025.4.2",
+    "zip_release": true,
     "hacs": "2.0.5"
 }
