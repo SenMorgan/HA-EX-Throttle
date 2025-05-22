@@ -40,8 +40,11 @@ jobs:
 
       - name: Create ZIP archive
         run: |
-          cd custom_components
-          zip -r ../ex_habridge.zip ex_habridge
+          mkdir -p temp_zip_contents
+          cp -r custom_components/ex_habridge/* temp_zip_contents/
+          cp README.md hacs.json temp_zip_contents/
+          cd temp_zip_contents
+          zip -r ../ex_habridge.zip ./*
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -49,5 +52,6 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: ex_habridge.zip
           generate_release_notes: true
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
