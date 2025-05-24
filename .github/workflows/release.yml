@@ -25,7 +25,7 @@ jobs:
       - name: Extract version from manifest.json
         id: get_version
         run: |
-          VERSION=$(jq -r .version custom_components/ex_habridge/manifest.json)
+          VERSION=$(jq -r .version ./custom_components/ex_habridge/manifest.json)
           echo "Version from manifest: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
@@ -40,18 +40,15 @@ jobs:
 
       - name: Create ZIP archive
         run: |
-          mkdir -p temp_zip_contents
-          cp -r custom_components/ex_habridge/* temp_zip_contents/
-          cp README.md hacs.json temp_zip_contents/
-          cd temp_zip_contents
-          zip -r ../ex_habridge.zip ./*
+          cd ./custom_components/ex_habridge
+          zip -r ex_habridge.zip ./*
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: ex_habridge.zip
+          name: "${{ github.ref_name }} 🚂"
+          files: ./custom_components/ex_habridge/ex_habridge.zip
           generate_release_notes: true
-          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
